@@ -142,3 +142,7 @@ git push origin v1.0.0
 - [metacubexd](https://github.com/MetaCubeX/metacubexd)
 - [Yams](https://github.com/jpsim/Yams)
 - ClashBar、[clash-verge-rev](https://github.com/clash-verge-rev/clash-verge-rev)：参考了 TUN 授权与 DNS 处理的思路
+
+## 许可证
+
+[GPL-3.0](LICENSE)
