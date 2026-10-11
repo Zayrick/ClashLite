@@ -122,11 +122,6 @@ struct ClashLiteApp: App {
                 }
             }
 
-            SettingsLink {
-                Text("设置…")
-            }
-            .keyboardShortcut(",")
-
             Button("退出 ClashLite") {
                 NSApplication.shared.terminate(nil)
             }
@@ -134,10 +129,6 @@ struct ClashLiteApp: App {
         } label: {
             Image(core.isTunEnabled ? .menuBarIconTun : .menuBarIcon)
                 .accessibilityLabel("ClashLite")
-        }
-
-        Settings {
-            SettingsView()
         }
 
         Window("新增配置", id: AddProfileView.windowID) {
