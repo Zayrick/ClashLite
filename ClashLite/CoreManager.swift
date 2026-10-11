@@ -101,11 +101,21 @@ final class CoreManager {
             }
         }
 
-        Task { [weak self] in
-            for await profile in Observations({ profileStore.selected }) {
-                self?.select(profile)
+        observeSelection(of: profileStore)
+    }
+
+    /// 跟随选中的配置启动或切换内核；Observations 需要 macOS 26，这里用 withObservationTracking 逐次重新订阅
+    private func observeSelection(of profileStore: ProfileStore) {
+        let profile = withObservationTracking {
+            profileStore.selected
+        } onChange: { [weak self, weak profileStore] in
+            // onChange 在属性修改前调用，到下一轮再读取新值
+            Task { @MainActor [self, profileStore] in
+                guard let self, let profileStore else { return }
+                self.observeSelection(of: profileStore)
             }
         }
+        select(profile)
     }
 
     /// TUN 会影响 DNS 覆写，需要以完整配置重新加载
