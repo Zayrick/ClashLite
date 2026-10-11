@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="129 47 280 280" fill="none">
+  <g fill="#000000" aria-label="等弧长排列的圆点轮廓">
+    <circle cx="391.2200" cy="280.0000" r="12" />
+    <circle cx="385.9525" cy="241.6461" r="12" />
+    <circle cx="380.0856" cy="203.3794" r="12" />
+    <circle cx="373.4451" cy="165.2398" r="12" />
+    <circle cx="365.6590" cy="127.3190" r="12" />
+    <circle cx="354.0030" cy="97.0540" r="12" />
+    <circle cx="332.4877" cy="129.1733" r="12" />
+    <circle cx="307.4089" cy="147.4796" r="12" />
+    <circle cx="268.9771" cy="143.5037" r="12" />
+    <circle cx="230.6182" cy="148.0815" r="12" />
+    <circle cx="205.7618" cy="127.2426" r="12" />
+    <circle cx="181.9195" cy="96.8950" r="12" />
+    <circle cx="170.2507" cy="126.9323" r="12" />
+    <circle cx="163.1608" cy="164.9896" r="12" />
+    <circle cx="157.1659" cy="203.2361" r="12" />
+    <circle cx="151.8721" cy="241.5864" r="12" />
+    <circle cx="147.0580" cy="280.0000" r="12" />
+  </g>
+  <g fill="#000000">
+    <circle cx="212" cy="216" r="15" />
+    <circle cx="335" cy="216" r="15" />
+  </g>
+  <path d="M254 253 C260 257 266 253 271 248 C276 254 282 257 288 253" stroke="#000000" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

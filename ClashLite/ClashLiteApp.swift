@@ -43,7 +43,7 @@ struct ClashLiteApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
+        MenuBarExtra {
             Text("内核\(core.status.title)")
                 .badge(coreVersion.version)
 
@@ -131,6 +131,9 @@ struct ClashLiteApp: App {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
+        } label: {
+            Image(core.isTunEnabled ? .menuBarIconTun : .menuBarIcon)
+                .accessibilityLabel("ClashLite")
         }
 
         Settings {
