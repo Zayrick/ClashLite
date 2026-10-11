@@ -48,9 +48,14 @@ struct ClashLiteApp: App {
                 .badge(coreVersion.version)
 
             Button("打开面板") {
-                NSWorkspace.shared.open(core.controller.panelURL)
+                core.openPanel()
             }
-            .disabled(core.status != .running)
+            .disabled(core.status != .running || core.isUpdatingPanel)
+
+            Button(core.isUpdatingPanel ? "正在下载面板…" : "更新面板") {
+                core.updatePanel()
+            }
+            .disabled(core.status != .running || core.isUpdatingPanel)
 
             Toggle("网卡代理", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
 

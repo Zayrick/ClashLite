@@ -60,6 +60,14 @@ final class CoreManager {
 
     let controller = CoreController.load()
 
+    /// 正在更新面板
+    private(set) var isUpdatingPanel = false
+
+    /// 内核托管的面板，子目录取自当前生效的配置
+    private var panelURL: URL { controller.panelURL(uiName: uiName) }
+
+    private var uiName: String?
+
     @ObservationIgnored private var proxies: [String: CoreController.Proxy] = [:] {
         didSet { updateProxyGroups() }
     }
@@ -163,6 +171,48 @@ final class CoreManager {
         }
     }
 
+    /// 打开面板，面板文件不存在时先下载
+    func openPanel() {
+        guard !isUpdatingPanel else { return }
+        guard !FileManager.default.fileExists(atPath: panelIndexURL.path) else {
+            NSWorkspace.shared.open(panelURL)
+            return
+        }
+        downloadPanel(failureTitle: "下载面板失败") {
+            NSWorkspace.shared.open(self.panelURL)
+        }
+    }
+
+    /// 从 external-ui-url 重新下载面板
+    func updatePanel() {
+        downloadPanel(failureTitle: "更新面板失败") {
+            Notifier.post(id: "panel", title: "面板已更新", body: "在浏览器中重新载入面板页面即可使用新版本")
+        }
+    }
+
+    private func downloadPanel(failureTitle: String, then completion: @escaping () -> Void) {
+        guard !isUpdatingPanel else { return }
+        isUpdatingPanel = true
+        Task {
+            defer { isUpdatingPanel = false }
+            do {
+                try await controller.upgradeUI()
+                completion()
+            } catch {
+                Notifier.post(id: "panel", title: failureTitle, body: error.localizedDescription)
+            }
+        }
+    }
+
+    /// 内核工作目录中面板的入口文件，与 panelURL 对应
+    private var panelIndexURL: URL {
+        var url = CoreDirectory.homeURL.appending(path: controller.uiPath, directoryHint: .isDirectory)
+        if let uiName {
+            url.append(path: uiName, directoryHint: .isDirectory)
+        }
+        return url.appending(path: "index.html", directoryHint: .notDirectory)
+    }
+
     /// 选中的配置被删除时，内核继续运行原配置直到切换
     private func select(_ profile: Profile?) {
         guard let profile else {
@@ -250,8 +300,9 @@ final class CoreManager {
         }
 
         do {
-            let payload = try await Self.render(config, profileURL: profileURL)
-            try await controller.reloadConfigs(payload: payload)
+            let rendered = try await Self.render(config, profileURL: profileURL)
+            try await controller.reloadConfigs(payload: rendered.payload)
+            uiName = rendered.uiName
             await refreshProxies()
         } catch {
             Notifier.post(id: "core", title: "配置加载失败", body: error.localizedDescription)
@@ -292,10 +343,14 @@ final class CoreManager {
             guard FileManager.default.isExecutableFile(atPath: CoreDirectory.binaryURL.path) else {
                 throw CoreError.binaryNotFound
             }
+            // 应用被强制结束时内核不会随之退出，残留的内核会占用端口，
+            // 使新内核监听失败、请求被旧内核响应
+            await Self.terminateLeftovers()
             // 内核文件被替换后权限会丢失，启动前重新确认
             await ensureTunPermission()
-            let payload = try await Self.render(config, profileURL: profileURL)
-            let process = try launch(payload: payload)
+            let rendered = try await Self.render(config, profileURL: profileURL)
+            let process = try launch(payload: rendered.payload)
+            uiName = rendered.uiName
             self.process = process
 
             let version = try await waitUntilReady(process)
@@ -377,20 +432,48 @@ final class CoreManager {
     }
 
     @concurrent
-    private nonisolated static func render(_ config: CoreConfig, profileURL: URL) async throws -> String {
+    private nonisolated static func render(_ config: CoreConfig, profileURL: URL) async throws -> CoreConfig.Rendered {
         try config.render(profileURL: profileURL)
     }
 
     /// 先发送 SIGTERM 让内核清理 TUN 路由等，超时后强制结束
     private static func terminate(_ process: Process) async {
         guard process.isRunning else { return }
-        process.terminate()
-        for _ in 0..<30 where process.isRunning {
+        await terminate(pid: process.processIdentifier) { process.isRunning }
+    }
+
+    /// 结束所有从内核目录启动的进程；调用前须已停止当前内核
+    private static func terminateLeftovers() async {
+        let path = CoreDirectory.binaryURL.path
+        for pid in runningPIDs() where executablePath(of: pid) == path {
+            NSLog("结束残留的内核进程 \(pid)")
+            await terminate(pid: pid) { kill(pid, 0) == 0 }
+        }
+    }
+
+    private static func terminate(pid: pid_t, isRunning: () -> Bool) async {
+        kill(pid, SIGTERM)
+        for _ in 0..<30 where isRunning() {
             try? await Task.sleep(for: .milliseconds(100))
         }
-        if process.isRunning {
-            kill(process.processIdentifier, SIGKILL)
+        if isRunning() {
+            kill(pid, SIGKILL)
         }
+    }
+
+    private static func runningPIDs() -> [pid_t] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        // 预留余量，两次调用之间可能有新进程
+        var pids = [pid_t](repeating: 0, count: Int(count) + 32)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        return Array(pids.prefix(Int(max(filled, 0))))
+    }
+
+    private static func executablePath(of pid: pid_t) -> String? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return String(cString: buffer)
     }
 
     /// 从日志中取最后一条错误

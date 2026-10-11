@@ -24,36 +24,52 @@ nonisolated struct CoreController {
     static let port = 9097
 
     var secret: String
+    /// 面板目录（external-ui），相对内核工作目录
+    var uiPath: String
 
     var address: String { "\(Self.host):\(Self.port)" }
 
     private var baseURL: URL { URL(string: "http://\(address)")! }
 
-    /// 首次使用时生成随机密钥并保存，使面板中保存的后端在重启后依然有效
+    /// 首次使用时生成随机密钥和面板目录并保存，使面板中保存的后端在重启后依然有效
     static func load() -> CoreController {
-        let key = "controllerSecret"
-        if let secret = UserDefaults.standard.string(forKey: key), !secret.isEmpty {
-            return CoreController(secret: secret)
-        }
-        let secret = UUID().uuidString
-        UserDefaults.standard.set(secret, forKey: key)
-        return CoreController(secret: secret)
+        CoreController(
+            secret: stored("controllerSecret") { UUID().uuidString },
+            uiPath: stored("externalUIPath") { randomPath() }
+        )
     }
 
-    /// 参考 ClashBar：通过 metacubexd 的 setup 页面连接本机内核
-    var panelURL: URL {
-        var fragment = URLComponents()
-        fragment.path = "/setup"
-        fragment.queryItems = [
-            URLQueryItem(name: "http", value: "true"),
+    private static func stored(_ key: String, default make: () -> String) -> String {
+        if let value = UserDefaults.standard.string(forKey: key), !value.isEmpty {
+            return value
+        }
+        let value = make()
+        UserDefaults.standard.set(value, forKey: key)
+        return value
+    }
+
+    /// 数字和小写字母组成的随机目录名
+    private static func randomPath() -> String {
+        let characters = "0123456789abcdefghijklmnopqrstuvwxyz"
+        return String((0..<16).map { _ in characters.randomElement()! })
+    }
+
+    /// 参考 OpenWrt-nikki：打开内核托管的面板，external-ui-name 存在时位于其子目录
+    func panelURL(uiName: String?) -> URL {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        components.path = uiName.map { "/ui/\($0)/" } ?? "/ui/"
+        components.queryItems = [
+            URLQueryItem(name: "host", value: Self.host),
             URLQueryItem(name: "hostname", value: Self.host),
             URLQueryItem(name: "port", value: String(Self.port)),
             URLQueryItem(name: "secret", value: secret),
         ]
-
-        var components = URLComponents(string: "https://metacubex.github.io/metacubexd/")!
-        components.fragment = fragment.string
         return components.url!
+    }
+
+    /// POST /upgrade/ui，从 external-ui-url 重新下载面板
+    func upgradeUI() async throws {
+        try await send("POST", "/upgrade/ui", timeout: 120)
     }
 
     /// GET /version，返回内核版本

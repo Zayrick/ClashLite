@@ -26,7 +26,16 @@ nonisolated struct CoreConfig {
     var isTunEnabled: Bool
     var controller: CoreController
 
-    func render(profileURL: URL) throws -> String {
+    /// 配置未指定面板下载地址时使用的面板
+    static let defaultUIURL = "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+
+    struct Rendered {
+        var payload: String
+        /// 面板所在的子目录（external-ui-name）
+        var uiName: String?
+    }
+
+    func render(profileURL: URL) throws -> Rendered {
         let text: String
         do {
             text = try String(contentsOf: profileURL, encoding: .utf8)
@@ -44,9 +53,11 @@ nonisolated struct CoreConfig {
         root["mode"] = Node(mode.rawValue)
         root["external-controller"] = Node(controller.address)
         root["secret"] = Node(controller.secret, .implicit, .doubleQuoted)
+        applyUI(to: &root)
         applyTun(to: &root)
 
-        return try Self.serialize(root)
+        let uiName = root["external-ui-name"]?.string.flatMap { $0.isEmpty ? nil : $0 }
+        return Rendered(payload: try Self.serialize(root), uiName: uiName)
     }
 
     /// 配置须为 YAML 映射
@@ -59,6 +70,14 @@ nonisolated struct CoreConfig {
 
     static func serialize(_ root: Node.Mapping) throws -> String {
         try Yams.serialize(node: .mapping(root), width: -1, allowUnicode: true)
+    }
+
+    /// 面板由内核托管在工作目录中的随机目录下，未指定下载地址时使用 metacubexd
+    private func applyUI(to root: inout Node.Mapping) {
+        root["external-ui"] = Node(controller.uiPath)
+        if root["external-ui-url"]?.string?.isEmpty ?? true {
+            root["external-ui-url"] = Node(Self.defaultUIURL)
+        }
     }
 
     /// 参考 clash-verge-rev 的 use_tun：开启 TUN 时确保 DNS 以 fake-ip 模式工作
