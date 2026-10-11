@@ -31,6 +31,7 @@ struct ClashLiteApp: App {
     @State private var core: CoreManager
 
     init() {
+        CoreDirectory.installBundledIfNeeded()
         let profileStore = ProfileStore()
         let core = CoreManager(profileStore: profileStore)
         // 手动或自动更新正在使用的订阅后，重新加载内核

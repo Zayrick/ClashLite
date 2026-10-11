@@ -46,25 +46,55 @@ jobs:
             DEVELOPMENT_TEAM="" \
             build
 
-      - name: Create DMG
-        id: dmg
+      # Intel 选 amd64-v1，兼容所有 Intel 机型
+      - name: Download mihomo
+        id: mihomo
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          TAG="$(gh release view --repo MetaCubeX/mihomo --json tagName --jq .tagName)"
+          mkdir -p build/mihomo && cd build/mihomo
+          gh release download "$TAG" --repo MetaCubeX/mihomo \
+            --pattern "mihomo-darwin-arm64-$TAG.gz" \
+            --pattern "mihomo-darwin-amd64-v1-$TAG.gz"
+          gunzip -c "mihomo-darwin-arm64-$TAG.gz" > arm64
+          gunzip -c "mihomo-darwin-amd64-v1-$TAG.gz" > amd64
+          chmod +x arm64 amd64
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create DMG
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
           APP="build/DerivedData/Build/Products/Release/ClashLite.app"
-          DMG="ClashLite-${{ steps.version.outputs.version }}.dmg"
-          STAGING="$(mktemp -d)"
-          cp -R "$APP" "$STAGING/"
-          ln -s /Applications "$STAGING/Applications"
-          hdiutil create -volname ClashLite -srcfolder "$STAGING" -ov -format UDZO "$DMG"
-          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
+          make_dmg() {
+            local staging="$(mktemp -d)"
+            cp -R "$1" "$staging/"
+            ln -s /Applications "$staging/Applications"
+            hdiutil create -volname ClashLite -srcfolder "$staging" -ov -format UDZO "$2"
+          }
+
+          make_dmg "$APP" "ClashLite-$VERSION.dmg"
+
+          # 自带内核的版本按架构分别打包：内核放入 Resources，首次启动时复制到内核目录；改动了包内容，需重新签名
+          for ARCH in arm64 amd64; do
+            BUNDLED="$(mktemp -d)/ClashLite.app"
+            cp -R "$APP" "$BUNDLED"
+            cp "build/mihomo/$ARCH" "$BUNDLED/Contents/Resources/mihomo"
+            codesign --force --sign - "$BUNDLED/Contents/Resources/mihomo"
+            codesign --force --sign - --options runtime --preserve-metadata=entitlements "$BUNDLED"
+            codesign --verify --strict --verbose=2 "$BUNDLED"
+            make_dmg "$BUNDLED" "ClashLite-$VERSION-mihomo-${{ steps.mihomo.outputs.tag }}-$ARCH.dmg"
+          done
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.dmg.outputs.path }}
-          path: ${{ steps.dmg.outputs.path }}
+          name: ClashLite-${{ steps.version.outputs.version }}
+          path: "*.dmg"
 
       - name: Release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.dmg.outputs.path }}
+          files: "*.dmg"
           generate_release_notes: true

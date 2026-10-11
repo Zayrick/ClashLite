@@ -48,6 +48,28 @@ enum CoreDirectory {
         guard createIfNeeded() else { return }
         NSWorkspace.shared.open(url)
     }
+
+    /// 自带内核的版本把 mihomo 放在 Resources 中，内核目录中没有内核时复制过去；
+    /// 已有内核时不覆盖，以免替换用户自己放入的版本
+    static func installBundledIfNeeded() {
+        guard let bundled = Bundle.main.url(forResource: "mihomo", withExtension: nil),
+              !FileManager.default.fileExists(atPath: binaryURL.path),
+              createIfNeeded()
+        else { return }
+
+        // 先复制到临时文件再移动，避免版本监听读到不完整的文件
+        let temporary = url.appending(path: ".mihomo-\(UUID().uuidString)", directoryHint: .notDirectory)
+        do {
+            try FileManager.default.copyItem(at: bundled, to: temporary)
+            // 从未移除隔离属性的应用中复制出来时会带上隔离属性
+            removexattr(temporary.path, "com.apple.quarantine", 0)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: temporary.path)
+            try FileManager.default.moveItem(at: temporary, to: binaryURL)
+        } catch {
+            try? FileManager.default.removeItem(at: temporary)
+            NSLog("复制自带内核失败：\(error)")
+        }
+    }
 }
 
 nonisolated enum CoreLog {
