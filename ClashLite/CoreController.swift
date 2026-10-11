@@ -54,16 +54,19 @@ nonisolated struct CoreController {
         return String((0..<16).map { _ in characters.randomElement()! })
     }
 
-    /// 参考 OpenWrt-nikki：打开内核托管的面板，external-ui-name 存在时位于其子目录
+    /// 打开内核托管的面板，通过 metacubexd 的 hash 路由传入连接参数
     func panelURL(uiName: String?) -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         components.path = uiName.map { "/ui/\($0)/" } ?? "/ui/"
-        components.queryItems = [
-            URLQueryItem(name: "host", value: Self.host),
+        var route = URLComponents()
+        route.queryItems = [
             URLQueryItem(name: "hostname", value: Self.host),
             URLQueryItem(name: "port", value: String(Self.port)),
             URLQueryItem(name: "secret", value: secret),
         ]
+        // 路由查询参数中的加号须编码，避免被前端解析为空格。
+        let query = route.percentEncodedQuery!.replacingOccurrences(of: "+", with: "%2B")
+        components.percentEncodedFragment = "/setup?\(query)"
         return components.url!
     }
 
