@@ -37,11 +37,33 @@ struct ClashLiteApp: App {
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
-            Text("内核状态：\(core.status.title)")
+            Text("内核\(core.status.title)")
+                .badge(coreVersion.version)
+
+            Button("打开面板") {
+                NSWorkspace.shared.open(core.controller.panelURL)
+            }
+            .disabled(core.status != .running)
 
             Toggle("网卡代理", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
 
             Divider()
+
+            Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
+                if !profileStore.profiles.isEmpty {
+                    Picker("配置", selection: $profileStore.selectedName) {
+                        ForEach(profileStore.profiles) { profile in
+                            Text(profile.displayName).tag(Optional(profile.name))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+
+                    Divider()
+                }
+
+                AddProfileButton()
+            }
 
             Picker("模式：\(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
@@ -78,36 +100,18 @@ struct ClashLiteApp: App {
             }
             .disabled(core.proxyGroups.isEmpty)
 
-            Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
-                if !profileStore.profiles.isEmpty {
-                    Picker("配置", selection: $profileStore.selectedName) {
-                        ForEach(profileStore.profiles) { profile in
-                            Text(profile.displayName).tag(Optional(profile.name))
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-
-                    Divider()
-                }
-
-                AddProfileButton()
-            }
-
-            Button("打开面板") {
-                NSWorkspace.shared.open(core.controller.panelURL)
-            }
-            .disabled(core.status != .running)
-
             Divider()
 
             Menu("更多") {
-                Text("内核版本：\(coreVersion.version ?? "未找到")")
-
                 Button("重启内核") {
                     core.restart()
                 }
                 .disabled(profileStore.selected == nil)
+
+                Button("关闭所有连接") {
+                    core.closeAllConnections()
+                }
+                .disabled(core.status != .running)
 
                 Divider()
 

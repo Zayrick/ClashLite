@@ -145,6 +145,18 @@ final class CoreManager {
         }
     }
 
+    /// 关闭当前所有连接，例如切换节点后让旧连接立即走新节点
+    func closeAllConnections() {
+        enqueue {
+            guard self.status == .running else { return }
+            do {
+                try await self.controller.closeAllConnections()
+            } catch {
+                Notifier.post(id: "connections", title: "关闭连接失败", body: error.localizedDescription)
+            }
+        }
+    }
+
     /// 选中的配置被删除时，内核继续运行原配置直到切换
     private func select(_ profile: Profile?) {
         guard let profile else {

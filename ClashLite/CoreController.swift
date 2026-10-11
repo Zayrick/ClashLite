@@ -116,6 +116,11 @@ nonisolated struct CoreController {
         return "/proxies/" + (group.addingPercentEncoding(withAllowedCharacters: allowed) ?? group)
     }
 
+    /// DELETE /connections，关闭当前所有连接
+    func closeAllConnections() async throws {
+        try await send("DELETE", "/connections")
+    }
+
     /// PUT /configs，以完整配置内容重新加载内核
     func reloadConfigs(payload: String) async throws {
         try await send("PUT", "/configs?force=true", body: ["path": "", "payload": payload], timeout: 30)
