@@ -7,23 +7,38 @@
 
 import SwiftUI
 
+enum ProxyMode: String, CaseIterable, Identifiable {
+    case rule
+    case global
+    case direct
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .rule: "规则"
+        case .global: "全局"
+        case .direct: "直连"
+        }
+    }
+}
+
 @main
 struct ClashLiteApp: App {
     @State private var isSystemProxyEnabled = false
-    @State private var mode = "rule"
+    @State private var mode: ProxyMode = .rule
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
-            Toggle("系统代理", isOn: $isSystemProxyEnabled)
+            Toggle("网卡代理", isOn: $isSystemProxyEnabled)
 
             Divider()
 
-            Picker("模式", selection: $mode) {
-                Text("规则").tag("rule")
-                Text("全局").tag("global")
-                Text("直连").tag("direct")
+            Picker("模式：\(mode.title)", selection: $mode) {
+                ForEach(ProxyMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
             }
-            .pickerStyle(.inline)
 
             Divider()
 
