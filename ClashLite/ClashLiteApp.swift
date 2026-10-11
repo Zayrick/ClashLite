@@ -31,8 +31,15 @@ struct ClashLiteApp: App {
 
     init() {
         let profileStore = ProfileStore()
+        let core = CoreManager(profileStore: profileStore)
+        // 手动或自动更新正在使用的订阅后，重新加载内核
+        profileStore.onUpdate = { [weak profileStore, weak core] name in
+            if profileStore?.selectedName == name {
+                core?.reload()
+            }
+        }
         _profileStore = State(initialValue: profileStore)
-        _core = State(initialValue: CoreManager(profileStore: profileStore))
+        _core = State(initialValue: core)
     }
 
     var body: some Scene {
@@ -49,7 +56,7 @@ struct ClashLiteApp: App {
 
             Divider()
 
-            ProfileMenu(profileStore: profileStore, core: core)
+            ProfileMenu(profileStore: profileStore)
 
             Picker("模式：\(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in

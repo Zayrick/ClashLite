@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// 直接编辑配置文件，保存前由内核校验，正在使用时立即重新加载
+/// 直接编辑配置文件，保存前由内核校验，正在使用时立即重新加载；远程订阅配置只读，修改需使用配置覆写
 struct ProfileEditorView: View {
     static let windowID = "profile-editor"
 
@@ -23,10 +23,14 @@ struct ProfileEditorView: View {
         profileStore.profiles.first { $0.name == name && !$0.isDeleted }
     }
 
+    private var isReadOnly: Bool {
+        profile?.subscription != nil
+    }
+
     private var hint: String {
-        profile?.subscription == nil
-            ? "保存前会校验配置本身及应用覆写后的配置"
-            : "更新订阅会覆盖此处的修改，长期修改建议使用配置覆写"
+        isReadOnly
+            ? "远程配置为只读，如需修改请使用配置覆写"
+            : "保存前会校验配置本身及应用覆写后的配置"
     }
 
     var body: some View {
@@ -35,13 +39,13 @@ struct ProfileEditorView: View {
                 ContentUnavailableView("无法打开配置", systemImage: "exclamationmark.triangle", description: Text(loadError))
                     .frame(minWidth: 520, minHeight: 360)
             } else if let binding = Binding($text) {
-                YAMLEditor(text: binding, hint: hint, save: save)
+                YAMLEditor(text: binding, hint: hint, save: isReadOnly ? nil : { try await save() })
             } else {
                 ProgressView()
                     .frame(minWidth: 520, minHeight: 360)
             }
         }
-        .navigationTitle("编辑配置 - \(name)")
+        .navigationTitle("\(isReadOnly ? "查看配置" : "编辑配置") - \(name)")
         .onAppear(perform: load)
     }
 

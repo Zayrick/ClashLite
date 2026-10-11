@@ -7,12 +7,14 @@
 
 import SwiftUI
 
-/// 菜单中的配置管理：新增、切换、编辑/更新当前配置、配置覆写、全局覆写
+/// 菜单中的配置管理：新增、切换、编辑（远程配置仅查看）/更新当前配置、自动更新、配置覆写、全局覆写
 struct ProfileMenu: View {
     @Bindable var profileStore: ProfileStore
-    var core: CoreManager
 
     @Environment(\.openWindow) private var openWindow
+
+    /// 自动更新间隔选项（小时），nil 表示关闭
+    private static let intervals: [Int?] = [nil, 6, 12, 24, 72]
 
     /// 已删除的配置不可编辑
     private var current: Profile? {
@@ -37,7 +39,7 @@ struct ProfileMenu: View {
 
             Divider()
 
-            Button("编辑配置…") {
+            Button(current?.subscription == nil ? "编辑配置…" : "查看配置…") {
                 guard let current else { return }
                 open(ProfileEditorView.windowID, value: current.name)
             }
@@ -48,8 +50,21 @@ struct ProfileMenu: View {
                 Button(isUpdating ? "正在更新配置…" : "更新配置") {
                     Task { await update(current) }
                 }
-                .badge(subscription.updatedAt.formatted(.relative(presentation: .named)))
+                .badge(subscription.updatedAt.formatted(date: .numeric, time: .shortened))
                 .disabled(isUpdating)
+
+                Picker("自动更新：\(Self.title(of: subscription.interval))", selection: Binding(
+                    get: { subscription.interval },
+                    set: { profileStore.setInterval($0, of: current) }
+                )) {
+                    // 订阅建议的间隔可能不在预设选项中
+                    let options = Self.intervals.contains(subscription.interval)
+                        ? Self.intervals
+                        : Self.intervals + [subscription.interval]
+                    ForEach(options, id: \.self) { interval in
+                        Text(Self.title(of: interval)).tag(interval)
+                    }
+                }
             }
 
             Button("配置覆写…") {
@@ -72,12 +87,13 @@ struct ProfileMenu: View {
         NSApplication.shared.activate()
     }
 
+    private static func title(of interval: Int?) -> String {
+        interval.map { "每 \($0) 小时" } ?? "关闭"
+    }
+
     private func update(_ profile: Profile) async {
         do {
             try await profileStore.update(profile)
-            if profileStore.selectedName == profile.name {
-                core.reload()
-            }
             Notifier.post(id: "profile", title: "配置已更新", body: profile.name)
         } catch {
             Notifier.post(id: "profile", title: "更新配置失败", body: error.localizedDescription)

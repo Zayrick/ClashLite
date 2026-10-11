@@ -7,11 +7,11 @@
 
 import SwiftUI
 
-/// 编辑 YAML 的窗口内容：保存期间显示进度，失败时在底部显示错误，成功后关闭窗口
+/// 编辑 YAML 的窗口内容：保存期间显示进度，失败时在底部显示错误，成功后关闭窗口；不提供 save 时为只读查看
 struct YAMLEditor: View {
     @Binding var text: String
     var hint: String
-    var save: () async throws -> Void
+    var save: (() async throws -> Void)?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -20,7 +20,7 @@ struct YAMLEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CodeEditor(text: $text, isEditable: !isSaving)
+            CodeEditor(text: $text, isEditable: save != nil && !isSaving)
                 .frame(minWidth: 520, minHeight: 360)
 
             Divider()
@@ -43,16 +43,23 @@ struct YAMLEditor: View {
 
                 Spacer()
 
-                Button("取消", role: .cancel) {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
+                if let save {
+                    Button("取消", role: .cancel) {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
 
-                Button("保存") {
-                    Task { await performSave() }
+                    Button("保存") {
+                        Task { await performSave(save) }
+                    }
+                    .keyboardShortcut("s")
+                    .disabled(isSaving)
+                } else {
+                    Button("关闭", role: .cancel) {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
                 }
-                .keyboardShortcut("s")
-                .disabled(isSaving)
             }
             .padding()
         }
@@ -61,7 +68,7 @@ struct YAMLEditor: View {
         }
     }
 
-    private func performSave() async {
+    private func performSave(_ save: () async throws -> Void) async {
         errorMessage = nil
         isSaving = true
         defer { isSaving = false }

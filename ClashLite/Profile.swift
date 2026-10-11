@@ -68,6 +68,12 @@ struct Profile: Identifiable, Hashable {
 struct Subscription: Codable, Hashable {
     var url: URL
     var updatedAt: Date
+    /// 自动更新间隔（小时）；nil 表示不自动更新
+    var interval: Int?
+
+    var nextUpdate: Date? {
+        interval.map { updatedAt.addingTimeInterval(TimeInterval($0) * 3600) }
+    }
 }
 
 enum ProfileError: LocalizedError {
@@ -113,6 +119,13 @@ final class ProfileStore {
 
     @ObservationIgnored private var subscriptions: [String: Subscription] = [:]
     @ObservationIgnored private var source: DispatchSourceFileSystemObject?
+    @ObservationIgnored private var autoUpdateTask: Task<Void, Never>?
+    @ObservationIgnored private static let autoUpdateCheckInterval = Duration.seconds(600)
+    /// 订阅未提供 profile-update-interval 时的默认自动更新间隔（小时）
+    @ObservationIgnored private static let defaultInterval = 24
+
+    /// 订阅配置更新完成后调用，参数为配置名称
+    @ObservationIgnored var onUpdate: ((String) -> Void)?
     @ObservationIgnored private static let selectedKey = "selectedProfileName"
 
     init() {
@@ -124,13 +137,15 @@ final class ProfileStore {
         selectedName = profiles.contains { $0.name == stored } ? stored : nil
 
         startMonitoring()
+        startAutoUpdate()
     }
 
     /// 下载订阅并保存为新配置
     func addSubscription(url: URL, name: String) async throws {
         try checkName(name)
-        let data = try await Self.download(url)
-        try await add(name: name, data: data, subscription: Subscription(url: url, updatedAt: .now))
+        let (data, interval) = try await Self.download(url)
+        let subscription = Subscription(url: url, updatedAt: .now, interval: interval ?? Self.defaultInterval)
+        try await add(name: name, data: data, subscription: subscription)
     }
 
     /// 复制本地配置文件到配置目录，原文件不受影响
@@ -156,11 +171,21 @@ final class ProfileStore {
         updatingNames.insert(profile.name)
         defer { updatingNames.remove(profile.name) }
 
-        let data = try await Self.download(subscription.url)
+        let (data, _) = try await Self.download(subscription.url)
         try await ConfigValidator.validate(profile: data, profileOverride: ConfigOverride.profile(profile.name).load())
         try write(data, to: profile)
 
-        subscriptions[profile.name] = Subscription(url: subscription.url, updatedAt: .now)
+        // 下载期间可能修改了自动更新间隔，以最新的为准
+        subscriptions[profile.name]?.updatedAt = .now
+        saveSubscriptions()
+        reload()
+        onUpdate?(profile.name)
+    }
+
+    /// 设置订阅的自动更新间隔（小时），nil 表示关闭
+    func setInterval(_ interval: Int?, of profile: Profile) {
+        guard subscriptions[profile.name] != nil else { return }
+        subscriptions[profile.name]?.interval = interval
         saveSubscriptions()
         reload()
     }
@@ -295,6 +320,31 @@ final class ProfileStore {
         self.source = source
     }
 
+    /// 定时检查到期的订阅；ContinuousClock 在睡眠期间继续计时，唤醒后会尽快检查
+    private func startAutoUpdate() {
+        autoUpdateTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.updateDueSubscriptions()
+                try? await Task.sleep(for: Self.autoUpdateCheckInterval)
+            }
+        }
+    }
+
+    /// 自动更新失败只记录日志，下次检查时重试，避免断网时反复通知
+    private func updateDueSubscriptions() async {
+        let due = profiles.filter { profile in
+            guard !profile.isDeleted, let next = profile.subscription?.nextUpdate else { return false }
+            return next <= .now
+        }
+        for profile in due {
+            do {
+                try await update(profile)
+            } catch {
+                NSLog("自动更新配置“\(profile.name)”失败：\(error)")
+            }
+        }
+    }
+
     private func loadSubscriptions() {
         guard let data = try? Data(contentsOf: ProfileDirectory.metadataURL) else { return }
         do {
@@ -315,8 +365,8 @@ final class ProfileStore {
         }
     }
 
-    /// 以 clash.meta 的 UA 请求，使订阅服务返回 Clash 格式的 YAML
-    private static func download(_ url: URL) async throws -> Data {
+    /// 以 clash.meta 的 UA 请求，使订阅服务返回 Clash 格式的 YAML；同时返回订阅建议的更新间隔（小时）
+    private static func download(_ url: URL) async throws -> (Data, Int?) {
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.setValue("clash.meta", forHTTPHeaderField: "User-Agent")
 
@@ -324,6 +374,10 @@ final class ProfileStore {
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ProfileError.badStatus(http.statusCode)
         }
-        return data
+        let header = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "profile-update-interval")
+        guard let hours = header.flatMap({ Double($0.trimmingCharacters(in: .whitespaces)) }), hours > 0 else {
+            return (data, nil)
+        }
+        return (data, max(1, Int(hours.rounded())))
     }
 }
