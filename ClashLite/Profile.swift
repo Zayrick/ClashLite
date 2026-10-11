@@ -72,7 +72,7 @@ struct Subscription: Codable, Hashable {
 
 enum ProfileError: LocalizedError {
     case badStatus(Int)
-    case invalidContent
+    case invalidConfig(String?)
     case invalidName
     case duplicateName(String)
     case readFailed
@@ -81,7 +81,7 @@ enum ProfileError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .badStatus(let code): "订阅请求失败（HTTP \(code)）"
-        case .invalidContent: "内容不是有效的 Clash 配置"
+        case .invalidConfig(let message): "配置校验失败：\(message ?? "未知错误")"
         case .invalidName: "名称不能为空，不能以“.”开头，也不能包含“/”或“:”"
         case .duplicateName(let name): "已存在名为“\(name)”的配置"
         case .readFailed: "无法读取所选文件"
@@ -127,11 +127,11 @@ final class ProfileStore {
     func addSubscription(url: URL, name: String) async throws {
         try checkName(name)
         let data = try await Self.download(url)
-        try add(name: name, data: data, subscription: Subscription(url: url, updatedAt: .now))
+        try await add(name: name, data: data, subscription: Subscription(url: url, updatedAt: .now))
     }
 
     /// 复制本地配置文件到配置目录，原文件不受影响
-    func importLocal(fileURL: URL, name: String) throws {
+    func importLocal(fileURL: URL, name: String) async throws {
         try checkName(name)
 
         let accessing = fileURL.startAccessingSecurityScopedResource()
@@ -144,9 +144,7 @@ final class ProfileStore {
             NSLog("读取本地配置失败：\(error)")
             throw ProfileError.readFailed
         }
-        try Self.validate(data)
-
-        try add(name: name, data: data, subscription: nil)
+        try await add(name: name, data: data, subscription: nil)
     }
 
     /// 名称即文件名：需合法且不与目录中已有配置重复（APFS 默认不区分大小写）
@@ -161,9 +159,11 @@ final class ProfileStore {
         }
     }
 
-    /// 写入配置文件，首个配置会自动选中
-    private func add(name: String, data: Data, subscription: Subscription?) throws {
-        // 下载期间可能已添加同名配置，写入前再确认一次
+    /// 校验后写入配置文件，首个配置会自动选中
+    private func add(name: String, data: Data, subscription: Subscription?) async throws {
+        try await Self.validate(data)
+
+        // 下载和校验期间可能已添加同名配置，写入前再确认一次
         try checkName(name)
 
         guard ProfileDirectory.createIfNeeded() else { throw ProfileError.saveFailed }
@@ -267,16 +267,43 @@ final class ProfileStore {
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw ProfileError.badStatus(http.statusCode)
         }
-
-        try validate(data)
         return data
     }
 
-    /// 粗略校验：Clash 配置至少包含节点或节点提供者
-    private static func validate(_ data: Data) throws {
-        let text = String(decoding: data, as: UTF8.self)
-        guard text.contains("proxies:") || text.contains("proxy-providers:") else {
-            throw ProfileError.invalidContent
+    /// 由内核以 `-t` 完整解析配置，与实际加载时的检查一致
+    private static func validate(_ data: Data) async throws {
+        guard FileManager.default.isExecutableFile(atPath: CoreDirectory.binaryURL.path) else {
+            throw CoreError.binaryNotFound
+        }
+        guard CoreDirectory.createIfNeeded() else { throw CoreError.launchFailed }
+        try await testConfig(data, binary: CoreDirectory.binaryURL, home: CoreDirectory.homeURL)
+    }
+
+    /// 与启动内核一致，经 CLASH_CONFIG_STRING 传入；使用内核工作目录以复用已下载的 Geo 数据
+    @concurrent
+    private nonisolated static func testConfig(_ data: Data, binary: URL, home: URL) async throws {
+        var environment = ProcessInfo.processInfo.environment
+        environment["CLASH_CONFIG_STRING"] = data.base64EncodedString()
+
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = binary
+        process.arguments = ["-d", home.path, "-t"]
+        process.environment = environment
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        do {
+            try process.run()
+        } catch {
+            NSLog("运行内核失败：\(error)")
+            throw CoreError.launchFailed
+        }
+
+        let output = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw ProfileError.invalidConfig(CoreLog.lastError(in: String(decoding: output, as: UTF8.self)))
         }
     }
 }

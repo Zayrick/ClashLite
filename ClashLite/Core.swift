@@ -50,6 +50,21 @@ enum CoreDirectory {
     }
 }
 
+nonisolated enum CoreLog {
+    /// 取输出中最后一条错误，例如 `level=fatal msg="Parse config error: ..."`
+    static func lastError(in text: String) -> String? {
+        let line = text.split(whereSeparator: \.isNewline).last {
+            $0.contains("level=fatal") || $0.contains("level=error")
+        }
+        guard let line, let start = line.range(of: "msg=\"") else { return nil }
+        var message = line[start.upperBound...]
+        if message.hasSuffix("\"") {
+            message = message.dropLast()
+        }
+        return message.replacingOccurrences(of: "\\\"", with: "\"")
+    }
+}
+
 /// 读取内核版本，并监听内核目录变化以自动刷新
 @Observable
 final class CoreVersionMonitor {

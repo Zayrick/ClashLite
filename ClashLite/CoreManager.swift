@@ -393,18 +393,10 @@ final class CoreManager {
         }
     }
 
-    /// 从日志中取最后一条错误，例如 `level=fatal msg="Parse config error: ..."`
+    /// 从日志中取最后一条错误
     private static func lastLogError() -> String? {
         guard let text = try? String(contentsOf: CoreDirectory.logURL, encoding: .utf8) else { return nil }
-        let line = text.split(whereSeparator: \.isNewline).last {
-            $0.contains("level=fatal") || $0.contains("level=error")
-        }
-        guard let line, let start = line.range(of: "msg=\"") else { return nil }
-        var message = line[start.upperBound...]
-        if message.hasSuffix("\"") {
-            message = message.dropLast()
-        }
-        return message.replacingOccurrences(of: "\\\"", with: "\"")
+        return CoreLog.lastError(in: text)
     }
 }
 

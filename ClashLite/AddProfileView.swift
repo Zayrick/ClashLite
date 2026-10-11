@@ -146,7 +146,9 @@ struct AddProfileView: View {
                 try await profileStore.addSubscription(url: url, name: name)
             case .local:
                 guard let fileURL else { return }
-                try profileStore.importLocal(fileURL: fileURL, name: name)
+                isLoading = true
+                defer { isLoading = false }
+                try await profileStore.importLocal(fileURL: fileURL, name: name)
             }
             dismiss()
         } catch {
