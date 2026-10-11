@@ -130,6 +130,21 @@ final class CoreManager {
         }
     }
 
+    /// 解除策略组的锁定，恢复自动选择
+    func unfixProxy(in group: String) {
+        guard let index = proxyGroups.firstIndex(where: { $0.name == group }) else { return }
+        proxyGroups[index].fixed = nil
+        enqueue {
+            guard self.status == .running else { return }
+            do {
+                try await self.controller.unfixProxy(in: group)
+            } catch {
+                Notifier.post(id: "proxy", title: "解除锁定失败", body: error.localizedDescription)
+            }
+            await self.refreshProxies()
+        }
+    }
+
     /// 选中的配置被删除时，内核继续运行原配置直到切换
     private func select(_ profile: Profile?) {
         guard let profile else {

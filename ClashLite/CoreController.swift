@@ -87,6 +87,8 @@ nonisolated struct CoreController {
         var type: String
         var all: [String]?
         var now: String?
+        /// URLTest、Fallback 手动锁定的节点，空字符串表示自动选择
+        var fixed: String?
         var hidden: Bool?
         var history: [History]?
     }
@@ -100,10 +102,18 @@ nonisolated struct CoreController {
 
     /// PUT /proxies/{group}，切换策略组选中的节点
     func selectProxy(_ name: String, in group: String) async throws {
+        try await send("PUT", Self.proxyPath(group), body: ["name": name])
+    }
+
+    /// DELETE /proxies/{group}，解除 URLTest、Fallback 的锁定，同时清除内核缓存中的选择
+    func unfixProxy(in group: String) async throws {
+        try await send("DELETE", Self.proxyPath(group))
+    }
+
+    private static func proxyPath(_ group: String) -> String {
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove("/")
-        let group = group.addingPercentEncoding(withAllowedCharacters: allowed) ?? group
-        try await send("PUT", "/proxies/\(group)", body: ["name": name])
+        return "/proxies/" + (group.addingPercentEncoding(withAllowedCharacters: allowed) ?? group)
     }
 
     /// PUT /configs，以完整配置内容重新加载内核

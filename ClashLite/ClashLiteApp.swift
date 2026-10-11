@@ -50,6 +50,14 @@ struct ClashLiteApp: App {
             Menu("策略组") {
                 ForEach(core.proxyGroups) { group in
                     Menu("\(group.name)：\(group.now ?? "无")") {
+                        if group.fixed != nil {
+                            Button("解除锁定") {
+                                core.unfixProxy(in: group.name)
+                            }
+
+                            Divider()
+                        }
+
                         Picker(group.name, selection: Binding(
                             get: { group.now },
                             set: { name in

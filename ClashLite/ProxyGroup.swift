@@ -27,6 +27,8 @@ nonisolated struct ProxyGroup: Identifiable, Equatable {
 
     var name: String
     var now: String?
+    /// URLTest、Fallback 被手动锁定的节点
+    var fixed: String?
     var members: [Member]
     /// 内核只允许手动切换 Selector、URLTest、Fallback，LoadBalance、Relay 等会被拒绝
     var isSelectable: Bool
@@ -50,7 +52,7 @@ nonisolated struct ProxyGroup: Identifiable, Equatable {
             guard let proxy = proxies[name], let all = proxy.all, !all.isEmpty, proxy.hidden != true else { return nil }
             let members = all.map { Member(name: $0, delay: delay(of: $0, in: proxies)) }
             let isSelectable = ["Selector", "URLTest", "Fallback"].contains(proxy.type)
-            return ProxyGroup(name: name, now: proxy.now, members: members, isSelectable: isSelectable)
+            return ProxyGroup(name: name, now: proxy.now, fixed: proxy.fixed.flatMap { $0.isEmpty ? nil : $0 }, members: members, isSelectable: isSelectable)
         }
     }
 
