@@ -42,11 +42,11 @@ struct ClashLiteApp: App {
                 }
             }
 
-            Menu("配置：\(profileStore.selected?.name ?? "无")") {
+            Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
                 if !profileStore.profiles.isEmpty {
-                    Picker("配置", selection: $profileStore.selectedID) {
+                    Picker("配置", selection: $profileStore.selectedName) {
                         ForEach(profileStore.profiles) { profile in
-                            Text(profile.name).tag(Optional(profile.id))
+                            Text(profile.displayName).tag(Optional(profile.name))
                         }
                     }
                     .pickerStyle(.inline)

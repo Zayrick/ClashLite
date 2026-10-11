@@ -16,9 +16,16 @@ enum ProfileDirectory {
             .appending(path: "Profiles", directoryHint: .isDirectory)
     }
 
-    /// 订阅列表索引
-    static var indexURL: URL {
+    /// 配置的附加信息（订阅链接等），以配置名称为键；配置列表本身以目录中的文件为准
+    static var metadataURL: URL {
         url.appending(path: "profiles.json", directoryHint: .notDirectory)
+    }
+
+    static let fileExtensions: Set<String> = ["yaml", "yml"]
+
+    /// 新配置以名称命名，便于在 Finder 中辨认
+    static func fileURL(forName name: String) -> URL {
+        url.appending(path: "\(name).yaml", directoryHint: .notDirectory)
     }
 
     @discardableResult
@@ -33,11 +40,6 @@ enum ProfileDirectory {
     }
 
     /// 打开配置目录；传入的文件存在时在 Finder 中选中它
-    /// 配置文件以名称命名，便于在 Finder 中辨认
-    static func fileURL(forName name: String) -> URL {
-        url.appending(path: "\(name).yaml", directoryHint: .notDirectory)
-    }
-
     static func open(selecting file: URL? = nil) {
         guard createIfNeeded() else { return }
         if let file, FileManager.default.fileExists(atPath: file.path) {
@@ -48,16 +50,24 @@ enum ProfileDirectory {
     }
 }
 
-struct Profile: Codable, Identifiable, Hashable {
-    var id: UUID
+struct Profile: Identifiable, Hashable {
     var name: String
-    /// 订阅链接；本地导入的配置为 nil
-    var url: URL?
-    var updatedAt: Date
+    var fileURL: URL
+    /// 订阅信息；本地配置为 nil
+    var subscription: Subscription?
+    /// 当前选中的配置文件已被删除时为 true，仅在切换前保留在列表中
+    var isDeleted = false
 
-    var fileURL: URL {
-        ProfileDirectory.fileURL(forName: name)
+    var id: String { name }
+
+    var displayName: String {
+        isDeleted ? "\(name)（已删除）" : name
     }
+}
+
+struct Subscription: Codable, Hashable {
+    var url: URL
+    var updatedAt: Date
 }
 
 enum ProfileError: LocalizedError {
@@ -80,36 +90,44 @@ enum ProfileError: LocalizedError {
     }
 }
 
-/// 管理配置：持久化列表、当前选中项，以及下载订阅、导入本地文件
+/// 管理配置：以配置目录中的文件为准生成列表，监听目录变化自动刷新
 @Observable
 final class ProfileStore {
     private(set) var profiles: [Profile] = []
 
-    var selectedID: UUID? {
+    var selectedName: String? {
         didSet {
-            UserDefaults.standard.set(selectedID?.uuidString, forKey: Self.selectedKey)
+            guard selectedName != oldValue else { return }
+            UserDefaults.standard.set(selectedName, forKey: Self.selectedKey)
+            // 切换后不再保留已删除的旧配置
+            reload()
         }
     }
 
     var selected: Profile? {
-        profiles.first { $0.id == selectedID }
+        profiles.first { $0.name == selectedName }
     }
 
-    @ObservationIgnored private static let selectedKey = "selectedProfileID"
+    @ObservationIgnored private var subscriptions: [String: Subscription] = [:]
+    @ObservationIgnored private var source: DispatchSourceFileSystemObject?
+    @ObservationIgnored private static let selectedKey = "selectedProfileName"
 
     init() {
-        load()
-        selectedID = UserDefaults.standard.string(forKey: Self.selectedKey).flatMap(UUID.init(uuidString:))
-        if selected == nil {
-            selectedID = profiles.first?.id
-        }
+        loadSubscriptions()
+        reload()
+
+        // 启动时选中的文件已不存在，则保持未选中状态
+        let stored = UserDefaults.standard.string(forKey: Self.selectedKey)
+        selectedName = profiles.contains { $0.name == stored } ? stored : nil
+
+        startMonitoring()
     }
 
     /// 下载订阅并保存为新配置
     func addSubscription(url: URL, name: String) async throws {
         try checkName(name)
         let data = try await Self.download(url)
-        try add(Profile(id: UUID(), name: name, url: url, updatedAt: .now), data: data)
+        try add(name: name, data: data, subscription: Subscription(url: url, updatedAt: .now))
     }
 
     /// 复制本地配置文件到配置目录，原文件不受影响
@@ -128,57 +146,117 @@ final class ProfileStore {
         }
         try Self.validate(data)
 
-        try add(Profile(id: UUID(), name: name, url: nil, updatedAt: .now), data: data)
+        try add(name: name, data: data, subscription: nil)
     }
 
-    /// 名称即文件名：需合法且不与已有配置或目录中的文件重复（APFS 默认不区分大小写）
+    /// 名称即文件名：需合法且不与目录中已有配置重复（APFS 默认不区分大小写）
     private func checkName(_ name: String) throws {
         guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains(":") else {
             throw ProfileError.invalidName
         }
-        let exists = profiles.contains { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+        let exists = profiles.contains { !$0.isDeleted && $0.name.caseInsensitiveCompare(name) == .orderedSame }
             || FileManager.default.fileExists(atPath: ProfileDirectory.fileURL(forName: name).path)
         if exists {
             throw ProfileError.duplicateName(name)
         }
     }
 
-    /// 写入配置文件并加入列表，首个配置会自动选中
-    private func add(_ profile: Profile, data: Data) throws {
+    /// 写入配置文件，首个配置会自动选中
+    private func add(name: String, data: Data, subscription: Subscription?) throws {
         // 下载期间可能已添加同名配置，写入前再确认一次
-        try checkName(profile.name)
+        try checkName(name)
+
         guard ProfileDirectory.createIfNeeded() else { throw ProfileError.saveFailed }
         do {
-            try data.write(to: profile.fileURL, options: .atomic)
+            try data.write(to: ProfileDirectory.fileURL(forName: name), options: .atomic)
         } catch {
             NSLog("写入配置失败：\(error)")
             throw ProfileError.saveFailed
         }
 
-        profiles.append(profile)
-        save()
-        if selectedID == nil {
-            selectedID = profile.id
+        subscriptions[name] = subscription
+        saveSubscriptions()
+        reload()
+        if selectedName == nil {
+            selectedName = name
         }
     }
 
-    private func load() {
-        guard let data = try? Data(contentsOf: ProfileDirectory.indexURL) else { return }
+    /// 扫描配置目录重建列表；选中的配置文件被删除时以“已删除”状态保留
+    private func reload() {
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: ProfileDirectory.url,
+            includingPropertiesForKeys: nil,
+            options: .skipsHiddenFiles
+        )) ?? []
+
+        var profiles = files
+            .filter { ProfileDirectory.fileExtensions.contains($0.pathExtension.lowercased()) }
+            .map { url in
+                let name = url.deletingPathExtension().lastPathComponent
+                return Profile(name: name, fileURL: url, subscription: subscriptions[name])
+            }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+
+        // TODO: 接入内核后，此状态表示“内核仍在运行已删除的配置”：
+        //       - 未选中或选中项已删除时不启动内核
+        //       - 切换配置时通过 PUT /configs 让内核加载新文件，再从列表移除已删除项
+        if let selectedName, !profiles.contains(where: { $0.name == selectedName }) {
+            profiles.append(Profile(
+                name: selectedName,
+                fileURL: ProfileDirectory.fileURL(forName: selectedName),
+                isDeleted: true
+            ))
+        }
+
+        self.profiles = profiles
+
+        // 清理文件已不存在的订阅信息，避免之后同名的本地文件被误认为订阅
+        let existing = Set(profiles.lazy.filter { !$0.isDeleted }.map(\.name))
+        let stale = subscriptions.keys.filter { !existing.contains($0) }
+        if !stale.isEmpty {
+            stale.forEach { subscriptions[$0] = nil }
+            saveSubscriptions()
+        }
+    }
+
+    private func startMonitoring() {
+        guard ProfileDirectory.createIfNeeded() else { return }
+        let fd = open(ProfileDirectory.url.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd,
+            eventMask: [.write, .rename, .delete],
+            queue: .main
+        )
+        source.setEventHandler { [weak self] in
+            self?.reload()
+        }
+        source.setCancelHandler {
+            close(fd)
+        }
+        source.resume()
+        self.source = source
+    }
+
+    private func loadSubscriptions() {
+        guard let data = try? Data(contentsOf: ProfileDirectory.metadataURL) else { return }
         do {
-            profiles = try JSONDecoder().decode([Profile].self, from: data)
+            subscriptions = try JSONDecoder().decode([String: Subscription].self, from: data)
         } catch {
-            NSLog("读取订阅列表失败：\(error)")
+            NSLog("读取配置信息失败：\(error)")
         }
     }
 
-    private func save() {
+    private func saveSubscriptions() {
         guard ProfileDirectory.createIfNeeded() else { return }
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(profiles).write(to: ProfileDirectory.indexURL, options: .atomic)
+            try encoder.encode(subscriptions).write(to: ProfileDirectory.metadataURL, options: .atomic)
         } catch {
-            NSLog("保存订阅列表失败：\(error)")
+            NSLog("保存配置信息失败：\(error)")
         }
     }
 
