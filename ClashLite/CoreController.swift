@@ -81,6 +81,31 @@ nonisolated struct CoreController {
         try await send("PATCH", "/configs", body: body)
     }
 
+    /// 节点或策略组，策略组才有 all 和 now
+    struct Proxy: Decodable {
+        struct History: Decodable { var delay: Int }
+        var type: String
+        var all: [String]?
+        var now: String?
+        var hidden: Bool?
+        var history: [History]?
+    }
+
+    /// GET /proxies，读取全部节点和策略组
+    func proxies() async throws -> [String: Proxy] {
+        struct Response: Decodable { var proxies: [String: Proxy] }
+        let data = try await send("GET", "/proxies")
+        return try JSONDecoder().decode(Response.self, from: data).proxies
+    }
+
+    /// PUT /proxies/{group}，切换策略组选中的节点
+    func selectProxy(_ name: String, in group: String) async throws {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove("/")
+        let group = group.addingPercentEncoding(withAllowedCharacters: allowed) ?? group
+        try await send("PUT", "/proxies/\(group)", body: ["name": name])
+    }
+
     /// PUT /configs，以完整配置内容重新加载内核
     func reloadConfigs(payload: String) async throws {
         try await send("PUT", "/configs?force=true", body: ["path": "", "payload": payload], timeout: 30)

@@ -47,6 +47,27 @@ struct ClashLiteApp: App {
                 }
             }
 
+            Menu("策略组") {
+                ForEach(core.proxyGroups) { group in
+                    Menu("\(group.name)：\(group.now ?? "无")") {
+                        Picker(group.name, selection: Binding(
+                            get: { group.now },
+                            set: { name in
+                                if let name { core.selectProxy(name, in: group.name) }
+                            }
+                        )) {
+                            ForEach(group.members) { member in
+                                Text(member.title).tag(Optional(member.name))
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                        .disabled(!group.isSelectable)
+                    }
+                }
+            }
+            .disabled(core.proxyGroups.isEmpty)
+
             Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
                 if !profileStore.profiles.isEmpty {
                     Picker("配置", selection: $profileStore.selectedName) {

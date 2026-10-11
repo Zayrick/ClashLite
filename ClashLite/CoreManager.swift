@@ -31,6 +31,9 @@ final class CoreManager {
         didSet {
             guard status != oldValue else { return }
             status == .running ? startSync() : stopSync()
+            if status != .running {
+                proxies = [:]
+            }
         }
     }
 
@@ -38,6 +41,7 @@ final class CoreManager {
         didSet {
             guard mode != oldValue else { return }
             UserDefaults.standard.set(mode.rawValue, forKey: Self.modeKey)
+            updateProxyGroups()
             // 从内核同步来的修改无需再推回内核
             guard !isSyncing else { return }
             enqueue { await self.patch(["mode": self.mode.rawValue]) }
@@ -51,7 +55,14 @@ final class CoreManager {
         }
     }
 
+    /// 菜单中可快捷切换的策略组，随 proxies 和 mode 更新
+    private(set) var proxyGroups: [ProxyGroup] = []
+
     let controller = CoreController.load()
+
+    @ObservationIgnored private var proxies: [String: CoreController.Proxy] = [:] {
+        didSet { updateProxyGroups() }
+    }
 
     @ObservationIgnored private var profileURL: URL?
     @ObservationIgnored private var process: Process?
@@ -104,6 +115,21 @@ final class CoreManager {
         enqueue { await self.start() }
     }
 
+    /// 切换策略组选中的节点，先更新菜单再同步给内核
+    func selectProxy(_ name: String, in group: String) {
+        guard let index = proxyGroups.firstIndex(where: { $0.name == group }) else { return }
+        proxyGroups[index].now = name
+        enqueue {
+            guard self.status == .running else { return }
+            do {
+                try await self.controller.selectProxy(name, in: group)
+            } catch {
+                Notifier.post(id: "proxy", title: "切换节点失败", body: error.localizedDescription)
+            }
+            await self.refreshProxies()
+        }
+    }
+
     /// 选中的配置被删除时，内核继续运行原配置直到切换
     private func select(_ profile: Profile?) {
         guard let profile else {
@@ -146,8 +172,13 @@ final class CoreManager {
         syncTask = nil
     }
 
-    /// 以内核当前设置为准更新并保存，之后重载、重启都会沿用
+    /// 以内核当前设置为准更新并保存，之后重载、重启都会沿用；同时刷新策略组
     private func sync() async {
+        await syncConfigs()
+        await refreshProxies()
+    }
+
+    private func syncConfigs() async {
         guard status == .running else { return }
         let (mode, isTunEnabled) = (self.mode, self.isTunEnabled)
         guard let config = try? await controller.configs() else { return }
@@ -164,6 +195,20 @@ final class CoreManager {
         }
     }
 
+    /// 读取策略组，内核未运行或请求失败时保持原样
+    private func refreshProxies() async {
+        guard status == .running, let proxies = try? await controller.proxies(), status == .running else { return }
+        self.proxies = proxies
+    }
+
+    /// 内容未变时不赋值，避免菜单无谓刷新
+    private func updateProxyGroups() {
+        let groups = ProxyGroup.list(from: proxies, mode: mode)
+        if groups != proxyGroups {
+            proxyGroups = groups
+        }
+    }
+
     /// 内核运行中则热重载，否则启动
     private func apply() async {
         guard status == .running, let profileURL else {
@@ -174,6 +219,7 @@ final class CoreManager {
         do {
             let payload = try await Self.render(config, profileURL: profileURL)
             try await controller.reloadConfigs(payload: payload)
+            await refreshProxies()
         } catch {
             Notifier.post(id: "core", title: "配置加载失败", body: error.localizedDescription)
         }
@@ -221,6 +267,7 @@ final class CoreManager {
 
             let version = try await waitUntilReady(process)
             status = .running
+            await refreshProxies()
             Notifier.post(id: "core", title: "内核已启动", body: "mihomo \(version)，\(mode.title)模式")
         } catch {
             await stop()
