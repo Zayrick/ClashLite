@@ -37,6 +37,8 @@ struct ClashLiteApp: App {
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
+            Text("内核状态：\(core.status.title)")
+
             Toggle("网卡代理", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
 
             Divider()
@@ -101,7 +103,6 @@ struct ClashLiteApp: App {
 
             Menu("更多") {
                 Text("内核版本：\(coreVersion.version ?? "未找到")")
-                Text("内核状态：\(core.status.title)")
 
                 Button("重启内核") {
                     core.restart()
