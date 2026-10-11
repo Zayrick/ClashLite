@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       # 工程格式（objectVersion 110）需要 Xcode 27，macos-26 镜像最高只有 26.x
       - uses: maxim-lobanov/setup-xcode@v1
@@ -39,6 +39,8 @@ jobs:
             -configuration Release \
             -derivedDataPath build/DerivedData \
             -destination "generic/platform=macOS" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
             MARKETING_VERSION="${{ steps.version.outputs.version }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CODE_SIGN_IDENTITY="-" \
@@ -67,6 +69,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           APP="build/DerivedData/Build/Products/Release/ClashLite.app"
+          lipo -verify_arch arm64 x86_64 "$APP/Contents/MacOS/ClashLite"
 
           pipx install dmgbuild
           mkdir -p build/dmg
@@ -90,14 +93,29 @@ jobs:
             make_dmg "$BUNDLED" "ClashLite-$VERSION-mihomo-${{ steps.mihomo.outputs.tag }}-$ARCH.dmg"
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: ClashLite-${{ steps.version.outputs.version }}
           path: "*.dmg"
 
       - name: Release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.3
         with:
           files: "*.dmg"
+          body: |
+            ## 下载
+
+            **内置 mihomo ${{ steps.mihomo.outputs.tag }}，下载即用（推荐）**
+
+            - Apple 芯片（M 系列）：[ClashLite-${{ steps.version.outputs.version }}-mihomo-${{ steps.mihomo.outputs.tag }}-arm64.dmg](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/ClashLite-${{ steps.version.outputs.version }}-mihomo-${{ steps.mihomo.outputs.tag }}-arm64.dmg)
+            - Intel 芯片：[ClashLite-${{ steps.version.outputs.version }}-mihomo-${{ steps.mihomo.outputs.tag }}-amd64.dmg](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/ClashLite-${{ steps.version.outputs.version }}-mihomo-${{ steps.mihomo.outputs.tag }}-amd64.dmg)
+
+            **不含内核**
+
+            - 通用版（Apple 芯片 / Intel 均可）：[ClashLite-${{ steps.version.outputs.version }}.dmg](${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/ClashLite-${{ steps.version.outputs.version }}.dmg)
+
+              适合想自己管理内核版本的用户。
+
+            > 需要 macOS 15 或更高版本。
           generate_release_notes: true
