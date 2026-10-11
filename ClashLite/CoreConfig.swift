@@ -20,7 +20,7 @@ enum CoreConfigError: LocalizedError {
     }
 }
 
-/// 在配置文件之上依次合并用户覆写和应用内的设置，生成交给内核的最终配置
+/// 在配置文件之上依次合并配置覆写、全局覆写和应用内的设置，生成交给内核的最终配置
 nonisolated struct CoreConfig {
     var mode: ProxyMode
     var isTunEnabled: Bool
@@ -35,18 +35,30 @@ nonisolated struct CoreConfig {
             throw CoreConfigError.readFailed
         }
 
-        guard case .mapping(var root) = try Yams.compose(yaml: text) else {
-            throw CoreConfigError.invalidContent
-        }
-
-        ConfigOverride.merge(try ConfigOverride.parse(ConfigOverride.load()), into: &root)
+        var root = try Self.mapping(from: text)
+        // 文件名即配置名称
+        let name = profileURL.deletingPathExtension().lastPathComponent
+        try ConfigOverride.profile(name).apply(to: &root)
+        try ConfigOverride.global.apply(to: &root)
 
         root["mode"] = Node(mode.rawValue)
         root["external-controller"] = Node(controller.address)
         root["secret"] = Node(controller.secret, .implicit, .doubleQuoted)
         applyTun(to: &root)
 
-        return try Yams.serialize(node: .mapping(root), width: -1, allowUnicode: true)
+        return try Self.serialize(root)
+    }
+
+    /// 配置须为 YAML 映射
+    static func mapping(from text: String) throws -> Node.Mapping {
+        guard case .mapping(let root) = try Yams.compose(yaml: text) else {
+            throw CoreConfigError.invalidContent
+        }
+        return root
+    }
+
+    static func serialize(_ root: Node.Mapping) throws -> String {
+        try Yams.serialize(node: .mapping(root), width: -1, allowUnicode: true)
     }
 
     /// 参考 clash-verge-rev 的 use_tun：开启 TUN 时确保 DNS 以 fake-ip 模式工作

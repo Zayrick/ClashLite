@@ -22,28 +22,70 @@ enum ConfigOverrideError: LocalizedError {
     }
 }
 
-/// 用户自定义的配置覆写，对所有配置生效
-nonisolated enum ConfigOverride {
-    /// ~/Library/Application Support/<Bundle ID>/Override.yaml；放在配置目录之外，不会被当成配置
-    static var url: URL {
+/// 用户自定义的覆写：配置覆写只对单个配置生效，全局覆写对所有配置生效；
+/// 生成最终配置时先合并配置覆写，再合并全局覆写
+nonisolated enum ConfigOverride: Codable, Hashable {
+    case global
+    /// 以配置名称区分
+    case profile(String)
+
+    private static var rootURL: URL {
         URL.applicationSupportDirectory
             .appending(path: Bundle.main.bundleIdentifier ?? "ClashLite", directoryHint: .isDirectory)
-            .appending(path: "Override.yaml", directoryHint: .notDirectory)
     }
 
-    static func load() -> String {
+    /// 配置覆写所在目录，文件以配置名称命名
+    private static var profileDirectoryURL: URL {
+        rootURL.appending(path: "Overrides", directoryHint: .isDirectory)
+    }
+
+    /// 都放在配置目录之外，不会被当成配置
+    var url: URL {
+        switch self {
+        case .global:
+            Self.rootURL.appending(path: "Override.yaml", directoryHint: .notDirectory)
+        case .profile(let name):
+            Self.profileDirectoryURL.appending(path: "\(name).yaml", directoryHint: .notDirectory)
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .global: "全局覆写"
+        case .profile(let name): "配置覆写 - \(name)"
+        }
+    }
+
+    func load() -> String {
         (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     }
 
-    /// 校验后保存，内容无效时不写入
-    static func save(_ text: String) throws {
-        _ = try parse(text)
+    /// 检查 YAML 格式后保存，内容无效时不写入
+    func save(_ text: String) throws {
+        _ = try Self.parse(text)
         do {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             NSLog("保存覆写失败：\(error)")
             throw ConfigOverrideError.saveFailed
+        }
+    }
+
+    /// 合并到配置中
+    func apply(to root: inout Node.Mapping) throws {
+        Self.merge(try Self.parse(load()), into: &root)
+    }
+
+    /// 删除配置已不存在的配置覆写，避免之后同名的配置沿用未经校验的覆写
+    static func removeProfileOverrides(except names: Set<String>) {
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: profileDirectoryURL,
+            includingPropertiesForKeys: nil,
+            options: .skipsHiddenFiles
+        )) ?? []
+        for file in files where !names.contains(file.deletingPathExtension().lastPathComponent) {
+            try? FileManager.default.removeItem(at: file)
         }
     }
 
@@ -89,116 +131,44 @@ nonisolated enum ConfigOverride {
 struct ConfigOverrideView: View {
     static let windowID = "config-override"
 
+    let target: ConfigOverride
+
     @Environment(CoreManager.self) private var core
-    @Environment(\.dismiss) private var dismiss
+    @Environment(ProfileStore.self) private var profileStore
 
-    @State private var text = ConfigOverride.load()
-    @State private var errorMessage: String?
+    @State private var text: String
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            CodeEditor(text: $text)
-                .frame(minWidth: 520, minHeight: 360)
+    init(target: ConfigOverride) {
+        self.target = target
+        _text = State(initialValue: target.load())
+    }
 
-            Divider()
-
-            HStack(alignment: .firstTextBaseline) {
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .lineLimit(3)
-                        .textSelection(.enabled)
-                } else {
-                    Text("与当前配置深度合并；列表可用 +key 前置、key+ 追加")
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button("取消", role: .cancel) {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-
-                Button("保存") {
-                    save()
-                }
-                .keyboardShortcut("s")
-            }
-            .padding()
-        }
-        .onChange(of: text) {
-            errorMessage = nil
+    private var hint: String {
+        switch target {
+        case .global: "对所有配置生效，在配置覆写之后合并；列表可用 +key 前置、key+ 追加"
+        case .profile: "只对此配置生效，在全局覆写之前合并；列表可用 +key 前置、key+ 追加"
         }
     }
 
-    private func save() {
-        do {
-            try ConfigOverride.save(text)
+    var body: some View {
+        YAMLEditor(text: $text, hint: hint, save: save)
+            .navigationTitle(target.title)
+    }
+
+    /// 全局覆写只检查 YAML 格式；配置覆写由内核校验合并后的配置
+    private func save() async throws {
+        switch target {
+        case .global:
+            try ConfigOverride.global.save(text)
             core.reload()
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-}
-
-/// 基于 NSTextView 的等宽编辑器，关闭智能引号等替换，避免破坏 YAML
-private struct CodeEditor: NSViewRepresentable {
-    @Binding var text: String
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSTextView.scrollableTextView()
-        let textView = scrollView.documentView as! NSTextView
-        textView.delegate = context.coordinator
-        textView.string = text
-        textView.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.isRichText = false
-        textView.allowsUndo = true
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.isGrammarCheckingEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        return scrollView
-    }
-
-    func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        let textView = scrollView.documentView as! NSTextView
-        if textView.string != text {
-            textView.string = text
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        var text: Binding<String>
-
-        init(text: Binding<String>) {
-            self.text = text
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
-        }
-    }
-}
-
-/// 菜单中的入口按钮
-struct ConfigOverrideButton: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Button("配置覆写…") {
-            openWindow(id: ConfigOverrideView.windowID)
-            NSApplication.shared.activate()
+        case .profile(let name):
+            guard let profile = profileStore.profiles.first(where: { $0.name == name && !$0.isDeleted }) else {
+                throw ProfileError.notFound(name)
+            }
+            try await profileStore.saveOverride(text, of: profile)
+            if profileStore.selectedName == name {
+                core.reload()
+            }
         }
     }
 }

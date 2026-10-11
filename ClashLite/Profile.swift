@@ -72,18 +72,18 @@ struct Subscription: Codable, Hashable {
 
 enum ProfileError: LocalizedError {
     case badStatus(Int)
-    case invalidConfig(String?)
     case invalidName
     case duplicateName(String)
+    case notFound(String)
     case readFailed
     case saveFailed
 
     var errorDescription: String? {
         switch self {
         case .badStatus(let code): "订阅请求失败（HTTP \(code)）"
-        case .invalidConfig(let message): "配置校验失败：\(message ?? "未知错误")"
         case .invalidName: "名称不能为空，不能以“.”开头，也不能包含“/”或“:”"
         case .duplicateName(let name): "已存在名为“\(name)”的配置"
+        case .notFound(let name): "配置“\(name)”已不存在"
         case .readFailed: "无法读取所选文件"
         case .saveFailed: "无法保存配置文件"
         }
@@ -107,6 +107,9 @@ final class ProfileStore {
     var selected: Profile? {
         profiles.first { $0.name == selectedName }
     }
+
+    /// 正在更新的订阅配置名称
+    private(set) var updatingNames: Set<String> = []
 
     @ObservationIgnored private var subscriptions: [String: Subscription] = [:]
     @ObservationIgnored private var source: DispatchSourceFileSystemObject?
@@ -147,6 +150,59 @@ final class ProfileStore {
         try await add(name: name, data: data, subscription: nil)
     }
 
+    /// 重新下载订阅并覆盖配置文件，配置覆写保留
+    func update(_ profile: Profile) async throws {
+        guard let subscription = profile.subscription, !updatingNames.contains(profile.name) else { return }
+        updatingNames.insert(profile.name)
+        defer { updatingNames.remove(profile.name) }
+
+        let data = try await Self.download(subscription.url)
+        try await ConfigValidator.validate(profile: data, profileOverride: ConfigOverride.profile(profile.name).load())
+        try write(data, to: profile)
+
+        subscriptions[profile.name] = Subscription(url: subscription.url, updatedAt: .now)
+        saveSubscriptions()
+        reload()
+    }
+
+    /// 校验后保存编辑过的配置内容
+    func saveContent(_ text: String, of profile: Profile) async throws {
+        let data = Data(text.utf8)
+        try await ConfigValidator.validate(profile: data, profileOverride: ConfigOverride.profile(profile.name).load())
+        try write(data, to: profile)
+    }
+
+    /// 校验应用覆写后的配置，通过后保存配置覆写
+    func saveOverride(_ text: String, of profile: Profile) async throws {
+        let data: Data
+        do {
+            data = try Data(contentsOf: profile.fileURL)
+        } catch {
+            NSLog("读取配置失败：\(error)")
+            throw ProfileError.readFailed
+        }
+        try await ConfigValidator.validate(profileOverride: text, of: data)
+        try checkExists(profile)
+        try ConfigOverride.profile(profile.name).save(text)
+    }
+
+    /// 下载和校验期间配置可能已被删除，写入前确认，避免重新创建
+    private func write(_ data: Data, to profile: Profile) throws {
+        try checkExists(profile)
+        do {
+            try data.write(to: profile.fileURL, options: .atomic)
+        } catch {
+            NSLog("写入配置失败：\(error)")
+            throw ProfileError.saveFailed
+        }
+    }
+
+    private func checkExists(_ profile: Profile) throws {
+        guard FileManager.default.fileExists(atPath: profile.fileURL.path) else {
+            throw ProfileError.notFound(profile.name)
+        }
+    }
+
     /// 名称即文件名：需合法且不与目录中已有配置重复（APFS 默认不区分大小写）
     private func checkName(_ name: String) throws {
         guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains(":") else {
@@ -159,9 +215,9 @@ final class ProfileStore {
         }
     }
 
-    /// 校验后写入配置文件，首个配置会自动选中
+    /// 校验配置本身和应用全局覆写后的配置，通过后写入配置文件，首个配置会自动选中
     private func add(name: String, data: Data, subscription: Subscription?) async throws {
-        try await Self.validate(data)
+        try await ConfigValidator.validate(profile: data, profileOverride: "")
 
         // 下载和校验期间可能已添加同名配置，写入前再确认一次
         try checkName(name)
@@ -209,8 +265,9 @@ final class ProfileStore {
 
         self.profiles = profiles
 
-        // 清理文件已不存在的订阅信息，避免之后同名的本地文件被误认为订阅
+        // 清理文件已不存在的订阅信息和配置覆写，避免之后同名的本地文件被误认为订阅或沿用旧覆写
         let existing = Set(profiles.lazy.filter { !$0.isDeleted }.map(\.name))
+        ConfigOverride.removeProfileOverrides(except: existing)
         let stale = subscriptions.keys.filter { !existing.contains($0) }
         if !stale.isEmpty {
             stale.forEach { subscriptions[$0] = nil }
@@ -268,42 +325,5 @@ final class ProfileStore {
             throw ProfileError.badStatus(http.statusCode)
         }
         return data
-    }
-
-    /// 由内核以 `-t` 完整解析配置，与实际加载时的检查一致
-    private static func validate(_ data: Data) async throws {
-        guard FileManager.default.isExecutableFile(atPath: CoreDirectory.binaryURL.path) else {
-            throw CoreError.binaryNotFound
-        }
-        guard CoreDirectory.createIfNeeded() else { throw CoreError.launchFailed }
-        try await testConfig(data, binary: CoreDirectory.binaryURL, home: CoreDirectory.homeURL)
-    }
-
-    /// 与启动内核一致，经 CLASH_CONFIG_STRING 传入；使用内核工作目录以复用已下载的 Geo 数据
-    @concurrent
-    private nonisolated static func testConfig(_ data: Data, binary: URL, home: URL) async throws {
-        var environment = ProcessInfo.processInfo.environment
-        environment["CLASH_CONFIG_STRING"] = data.base64EncodedString()
-
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = binary
-        process.arguments = ["-d", home.path, "-t"]
-        process.environment = environment
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        do {
-            try process.run()
-        } catch {
-            NSLog("运行内核失败：\(error)")
-            throw CoreError.launchFailed
-        }
-
-        let output = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else {
-            throw ProfileError.invalidConfig(CoreLog.lastError(in: String(decoding: output, as: UTF8.self)))
-        }
     }
 }

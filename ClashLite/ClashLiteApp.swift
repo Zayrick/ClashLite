@@ -49,23 +49,7 @@ struct ClashLiteApp: App {
 
             Divider()
 
-            Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
-                if !profileStore.profiles.isEmpty {
-                    Picker("配置", selection: $profileStore.selectedName) {
-                        ForEach(profileStore.profiles) { profile in
-                            Text(profile.displayName).tag(Optional(profile.name))
-                        }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-
-                    Divider()
-                }
-
-                ConfigOverrideButton()
-
-                AddProfileButton()
-            }
+            ProfileMenu(profileStore: profileStore, core: core)
 
             Picker("模式：\(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
@@ -149,9 +133,22 @@ struct ClashLiteApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
-        Window("配置覆写", id: ConfigOverrideView.windowID) {
-            ConfigOverrideView()
-                .environment(core)
+        WindowGroup("编辑配置", id: ProfileEditorView.windowID, for: String.self) { $name in
+            if let name {
+                ProfileEditorView(name: name)
+                    .environment(core)
+                    .environment(profileStore)
+            }
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        WindowGroup("覆写", id: ConfigOverrideView.windowID, for: ConfigOverride.self) { $target in
+            if let target {
+                ConfigOverrideView(target: target)
+                    .environment(core)
+                    .environment(profileStore)
+            }
         }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
