@@ -16,11 +16,11 @@ nonisolated struct ProxyGroup: Identifiable, Equatable {
 
         var id: String { name }
 
-        var title: String {
+        var delayText: String? {
             switch delay {
-            case nil: name
-            case 0: "\(name)   | 超时"
-            case let delay?: "\(name)   | \(delay)ms"
+            case nil: nil
+            case 0: "超时"
+            case let delay?: "\(delay)ms"
             }
         }
     }

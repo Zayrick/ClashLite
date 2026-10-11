@@ -49,7 +49,7 @@ struct ClashLiteApp: App {
 
             Menu("策略组") {
                 ForEach(core.proxyGroups) { group in
-                    Menu("\(group.name)：\(group.now ?? "无")") {
+                    Menu(group.name) {
                         if group.fixed != nil {
                             Button("解除锁定") {
                                 core.unfixProxy(in: group.name)
@@ -58,20 +58,20 @@ struct ClashLiteApp: App {
                             Divider()
                         }
 
-                        Picker(group.name, selection: Binding(
-                            get: { group.now },
-                            set: { name in
-                                if let name { core.selectProxy(name, in: group.name) }
-                            }
-                        )) {
-                            ForEach(group.members) { member in
-                                Text(member.title).tag(Optional(member.name))
-                            }
+                        // 用 Toggle 而非 Picker，菜单项才能带 badge
+                        ForEach(group.members) { member in
+                            Toggle(member.name, isOn: Binding(
+                                get: { group.now == member.name },
+                                set: { isOn in
+                                    if isOn { core.selectProxy(member.name, in: group.name) }
+                                }
+                            ))
+                            .badge(member.delayText)
                         }
-                        .pickerStyle(.inline)
-                        .labelsHidden()
                         .disabled(!group.isSelectable)
                     }
+                    // 菜单中的 badge 对应 NSMenuItem.badge，显示在右侧且颜色较淡
+                    .badge(group.now)
                 }
             }
             .disabled(core.proxyGroups.isEmpty)
