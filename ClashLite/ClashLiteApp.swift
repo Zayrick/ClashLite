@@ -26,6 +26,7 @@ nonisolated enum ProxyMode: String, CaseIterable, Identifiable {
 @main
 struct ClashLiteApp: App {
     @State private var coreVersion = CoreVersionMonitor()
+    @State private var launchAtLogin = LaunchAtLogin()
     @State private var profileStore: ProfileStore
     @State private var core: CoreManager
 
@@ -121,6 +122,8 @@ struct ClashLiteApp: App {
                     ProfileDirectory.open(selecting: profileStore.selected?.fileURL)
                 }
             }
+
+            Toggle("开机自启", isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }))
 
             Button("退出 ClashLite") {
                 NSApplication.shared.terminate(nil)
