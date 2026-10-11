@@ -62,16 +62,19 @@ jobs:
           chmod +x arm64 amd64
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      # dmgbuild 直接写入 .DS_Store 来设置窗口样式，不依赖 Finder 脚本，在 CI 中更稳定
       - name: Create DMG
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           APP="build/DerivedData/Build/Products/Release/ClashLite.app"
 
+          pipx install dmgbuild
+          mkdir -p build/dmg
+          swift dmg/background.swift build/dmg
+          tiffutil -cathidpicheck build/dmg/background.png build/dmg/background@2x.png -out build/dmg/background.tiff
+
           make_dmg() {
-            local staging="$(mktemp -d)"
-            cp -R "$1" "$staging/"
-            ln -s /Applications "$staging/Applications"
-            hdiutil create -volname ClashLite -srcfolder "$staging" -ov -format UDZO "$2"
+            dmgbuild -s dmg/settings.py -D app="$1" -D background=build/dmg/background.tiff ClashLite "$2"
           }
 
           make_dmg "$APP" "ClashLite-$VERSION.dmg"
