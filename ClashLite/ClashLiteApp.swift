@@ -27,6 +27,7 @@ enum ProxyMode: String, CaseIterable, Identifiable {
 struct ClashLiteApp: App {
     @State private var isSystemProxyEnabled = false
     @State private var mode: ProxyMode = .rule
+    @State private var coreVersion = CoreVersionMonitor()
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
@@ -41,6 +42,16 @@ struct ClashLiteApp: App {
             }
 
             Divider()
+
+            Menu("更多") {
+                Text("内核版本：\(coreVersion.version ?? "未找到")")
+
+                Divider()
+
+                Button("打开内核目录") {
+                    CoreDirectory.open()
+                }
+            }
 
             SettingsLink {
                 Text("设置…")
