@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  SettingsView.swift
 //  ClashLite
 //
 //  Created by Zayrick on 10/11/26.
@@ -7,18 +7,16 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct SettingsView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Form {
+            Text("ClashLite 设置")
         }
-        .padding()
+        .formStyle(.grouped)
+        .frame(width: 400, height: 240)
     }
 }
 
 #Preview {
-    ContentView()
+    SettingsView()
 }
