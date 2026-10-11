@@ -20,7 +20,7 @@ enum CoreConfigError: LocalizedError {
     }
 }
 
-/// 在配置文件之上覆写应用内的设置，生成交给内核的最终配置
+/// 在配置文件之上依次合并用户覆写和应用内的设置，生成交给内核的最终配置
 nonisolated struct CoreConfig {
     var mode: ProxyMode
     var isTunEnabled: Bool
@@ -38,6 +38,8 @@ nonisolated struct CoreConfig {
         guard case .mapping(var root) = try Yams.compose(yaml: text) else {
             throw CoreConfigError.invalidContent
         }
+
+        ConfigOverride.merge(try ConfigOverride.parse(ConfigOverride.load()), into: &root)
 
         root["mode"] = Node(mode.rawValue)
         root["external-controller"] = Node(controller.address)

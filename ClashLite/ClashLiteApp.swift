@@ -62,6 +62,8 @@ struct ClashLiteApp: App {
                     Divider()
                 }
 
+                ConfigOverrideButton()
+
                 AddProfileButton()
             }
 
@@ -144,6 +146,13 @@ struct ClashLiteApp: App {
                 .environment(profileStore)
         }
         .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("配置覆写", id: ConfigOverrideView.windowID) {
+            ConfigOverrideView()
+                .environment(core)
+        }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
     }

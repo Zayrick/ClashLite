@@ -110,6 +110,12 @@ final class CoreManager {
         }
     }
 
+    /// 重新生成配置并应用，例如修改覆写之后
+    func reload() {
+        guard profileURL != nil else { return }
+        enqueue { await self.apply() }
+    }
+
     /// 手动重启，例如放入内核文件之后
     func restart() {
         enqueue { await self.start() }
