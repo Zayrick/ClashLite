@@ -28,6 +28,7 @@ struct ClashLiteApp: App {
     @State private var isSystemProxyEnabled = false
     @State private var mode: ProxyMode = .rule
     @State private var coreVersion = CoreVersionMonitor()
+    @State private var profileStore = ProfileStore()
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
@@ -41,6 +42,22 @@ struct ClashLiteApp: App {
                 }
             }
 
+            Menu("配置：\(profileStore.selected?.name ?? "无")") {
+                if !profileStore.profiles.isEmpty {
+                    Picker("配置", selection: $profileStore.selectedID) {
+                        ForEach(profileStore.profiles) { profile in
+                            Text(profile.name).tag(Optional(profile.id))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+
+                    Divider()
+                }
+
+                AddProfileButton()
+            }
+
             Divider()
 
             Menu("更多") {
@@ -50,6 +67,10 @@ struct ClashLiteApp: App {
 
                 Button("打开内核目录") {
                     CoreDirectory.open()
+                }
+
+                Button("打开配置目录") {
+                    ProfileDirectory.open()
                 }
             }
 
@@ -67,5 +88,13 @@ struct ClashLiteApp: App {
         Settings {
             SettingsView()
         }
+
+        Window("新增配置", id: AddProfileView.windowID) {
+            AddProfileView()
+                .environment(profileStore)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
     }
 }
