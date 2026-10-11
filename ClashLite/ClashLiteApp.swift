@@ -70,7 +70,7 @@ struct ClashLiteApp: App {
                 }
 
                 Button("打开配置目录") {
-                    ProfileDirectory.open()
+                    ProfileDirectory.open(selecting: profileStore.selected?.fileURL)
                 }
             }
 

@@ -32,9 +32,14 @@ enum ProfileDirectory {
         }
     }
 
-    static func open() {
+    /// 打开配置目录；传入的文件存在时在 Finder 中选中它
+    static func open(selecting file: URL? = nil) {
         guard createIfNeeded() else { return }
-        NSWorkspace.shared.open(url)
+        if let file, FileManager.default.fileExists(atPath: file.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([file])
+        } else {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 
