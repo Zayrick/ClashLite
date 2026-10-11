@@ -22,10 +22,21 @@ enum CoreDirectory {
         url.appending(path: "mihomo", directoryHint: .notDirectory)
     }
 
+    /// 内核工作目录（-d），存放 Geo 数据、缓存、规则集等；与内核目录分开，避免触发版本监听
+    static var homeURL: URL {
+        url.deletingLastPathComponent().appending(path: "Home", directoryHint: .isDirectory)
+    }
+
+    /// 内核输出，每次启动时清空
+    static var logURL: URL {
+        homeURL.appending(path: "mihomo.log", directoryHint: .notDirectory)
+    }
+
     @discardableResult
     static func createIfNeeded() -> Bool {
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
             return true
         } catch {
             NSLog("创建内核目录失败：\(error)")

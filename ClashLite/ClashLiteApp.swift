@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-enum ProxyMode: String, CaseIterable, Identifiable {
+nonisolated enum ProxyMode: String, CaseIterable, Identifiable {
     case rule
     case global
     case direct
@@ -25,18 +25,23 @@ enum ProxyMode: String, CaseIterable, Identifiable {
 
 @main
 struct ClashLiteApp: App {
-    @State private var isSystemProxyEnabled = false
-    @State private var mode: ProxyMode = .rule
     @State private var coreVersion = CoreVersionMonitor()
-    @State private var profileStore = ProfileStore()
+    @State private var profileStore: ProfileStore
+    @State private var core: CoreManager
+
+    init() {
+        let profileStore = ProfileStore()
+        _profileStore = State(initialValue: profileStore)
+        _core = State(initialValue: CoreManager(profileStore: profileStore))
+    }
 
     var body: some Scene {
         MenuBarExtra("ClashLite", systemImage: "bolt.horizontal.circle") {
-            Toggle("网卡代理", isOn: $isSystemProxyEnabled)
+            Toggle("网卡代理", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
 
             Divider()
 
-            Picker("模式：\(mode.title)", selection: $mode) {
+            Picker("模式：\(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
@@ -58,10 +63,21 @@ struct ClashLiteApp: App {
                 AddProfileButton()
             }
 
+            Button("打开面板") {
+                NSWorkspace.shared.open(core.controller.panelURL)
+            }
+            .disabled(core.status != .running)
+
             Divider()
 
             Menu("更多") {
                 Text("内核版本：\(coreVersion.version ?? "未找到")")
+                Text("内核状态：\(core.status.title)")
+
+                Button("重启内核") {
+                    core.restart()
+                }
+                .disabled(profileStore.selected == nil)
 
                 Divider()
 

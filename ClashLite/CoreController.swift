@@ -1,0 +1,107 @@
+//
+//  CoreController.swift
+//  ClashLite
+//
+//  Created by Zayrick on 10/11/26.
+//
+
+import Foundation
+
+enum CoreControllerError: LocalizedError {
+    case badStatus(Int, String)
+
+    var errorDescription: String? {
+        switch self {
+        case .badStatus(let code, let message):
+            message.isEmpty ? "内核接口请求失败（HTTP \(code)）" : message
+        }
+    }
+}
+
+/// 内核的 RESTful API（external-controller）
+nonisolated struct CoreController {
+    static let host = "127.0.0.1"
+    static let port = 9097
+
+    var secret: String
+
+    var address: String { "\(Self.host):\(Self.port)" }
+
+    private var baseURL: URL { URL(string: "http://\(address)")! }
+
+    /// 首次使用时生成随机密钥并保存，使面板中保存的后端在重启后依然有效
+    static func load() -> CoreController {
+        let key = "controllerSecret"
+        if let secret = UserDefaults.standard.string(forKey: key), !secret.isEmpty {
+            return CoreController(secret: secret)
+        }
+        let secret = UUID().uuidString
+        UserDefaults.standard.set(secret, forKey: key)
+        return CoreController(secret: secret)
+    }
+
+    /// 参考 ClashBar：通过 metacubexd 的 setup 页面连接本机内核
+    var panelURL: URL {
+        var fragment = URLComponents()
+        fragment.path = "/setup"
+        fragment.queryItems = [
+            URLQueryItem(name: "http", value: "true"),
+            URLQueryItem(name: "hostname", value: Self.host),
+            URLQueryItem(name: "port", value: String(Self.port)),
+            URLQueryItem(name: "secret", value: secret),
+        ]
+
+        var components = URLComponents(string: "https://metacubex.github.io/metacubexd/")!
+        components.fragment = fragment.string
+        return components.url!
+    }
+
+    /// GET /version，返回内核版本
+    func version() async throws -> String {
+        struct Response: Decodable { var version: String }
+        let data = try await send("GET", "/version", timeout: 1)
+        return try JSONDecoder().decode(Response.self, from: data).version
+    }
+
+    /// 内核当前生效的设置，仅解析需要同步的字段
+    struct RuntimeConfig: Decodable {
+        struct Tun: Decodable { var enable: Bool }
+        var mode: String
+        var tun: Tun?
+    }
+
+    /// GET /configs，读取内核当前设置（可能已被面板修改）
+    func configs() async throws -> RuntimeConfig {
+        let data = try await send("GET", "/configs")
+        return try JSONDecoder().decode(RuntimeConfig.self, from: data)
+    }
+
+    /// PATCH /configs，仅修改运行中的部分字段
+    func patchConfigs(_ body: [String: Any]) async throws {
+        try await send("PATCH", "/configs", body: body)
+    }
+
+    /// PUT /configs，以完整配置内容重新加载内核
+    func reloadConfigs(payload: String) async throws {
+        try await send("PUT", "/configs?force=true", body: ["path": "", "payload": payload], timeout: 30)
+    }
+
+    @discardableResult
+    private func send(_ method: String, _ path: String, body: [String: Any]? = nil, timeout: TimeInterval = 5) async throws -> Data {
+        var request = URLRequest(url: URL(string: path, relativeTo: baseURL)!, timeoutInterval: timeout)
+        request.httpMethod = method
+        request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            struct Message: Decodable { var message: String }
+            let message = (try? JSONDecoder().decode(Message.self, from: data))?.message ?? ""
+            throw CoreControllerError.badStatus(http.statusCode, message)
+        }
+        return data
+    }
+}

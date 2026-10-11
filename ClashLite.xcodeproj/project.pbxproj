@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		CC1710F0307B398D00C2C81D /* Yams in Frameworks */ = {isa = PBXBuildFile; productRef = CC1710F1307B398D00C2C81D /* Yams */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		CC171012307B398D00C2C81D /* ClashLite.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ClashLite.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -22,6 +26,7 @@
 		CC17100F307B398D00C2C81D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				CC1710F0307B398D00C2C81D /* Yams in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -60,6 +65,9 @@
 				CC171014307B398D00C2C81D /* ClashLite */,
 			);
 			name = ClashLite;
+			packageProductDependencies = (
+				CC1710F1307B398D00C2C81D /* Yams */,
+			);
 			productName = ClashLite;
 			productReference = CC171012307B398D00C2C81D /* ClashLite.app */;
 			productType = "com.apple.product-type.application";
@@ -88,6 +96,9 @@
 			);
 			mainGroup = CC171009307B398D00C2C81D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CC1710F2307B398D00C2C81D /* XCRemoteSwiftPackageReference "Yams" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CC171013307B398D00C2C81D /* Products */;
 			projectDirPath = "";
@@ -321,6 +332,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CC1710F2307B398D00C2C81D /* XCRemoteSwiftPackageReference "Yams" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jpsim/Yams.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 6.2.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CC1710F1307B398D00C2C81D /* Yams */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CC1710F2307B398D00C2C81D /* XCRemoteSwiftPackageReference "Yams" */;
+			productName = Yams;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CC17100A307B398D00C2C81D /* Project object */;
 	validationLevel = 1;

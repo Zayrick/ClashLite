@@ -198,9 +198,7 @@ final class ProfileStore {
             }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
 
-        // TODO: 接入内核后，此状态表示“内核仍在运行已删除的配置”：
-        //       - 未选中或选中项已删除时不启动内核
-        //       - 切换配置时通过 PUT /configs 让内核加载新文件，再从列表移除已删除项
+        // 此状态表示“内核仍在运行已删除的配置”，切换配置后才从列表移除（见 CoreManager）
         if let selectedName, !profiles.contains(where: { $0.name == selectedName }) {
             profiles.append(Profile(
                 name: selectedName,
