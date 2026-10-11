@@ -69,7 +69,10 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           APP="build/DerivedData/Build/Products/Release/ClashLite.app"
-          lipo -verify_arch arm64 x86_64 "$APP/Contents/MacOS/ClashLite"
+          # 逐个验证，兼容当前 lipo 对多个 -verify_arch 参数的解析行为。
+          for ARCH in arm64 x86_64; do
+            lipo "$APP/Contents/MacOS/ClashLite" -verify_arch "$ARCH"
+          done
 
           pipx install dmgbuild
           mkdir -p build/dmg
