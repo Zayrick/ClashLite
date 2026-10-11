@@ -44,18 +44,15 @@ struct AddProfileView: View {
         return url
     }
 
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var canAdd: Bool {
-        guard !isLoading else { return false }
+        guard !isLoading, !trimmedName.isEmpty else { return false }
         switch source {
         case .subscription: return subscriptionURL != nil
         case .local: return fileURL != nil
-        }
-    }
-
-    private var namePrompt: String {
-        switch source {
-        case .subscription: "可选，默认使用订阅提供的名称"
-        case .local: "可选，默认使用文件名"
         }
     }
 
@@ -86,7 +83,7 @@ struct AddProfileView: View {
                     }
                 }
 
-                TextField("名称", text: $name, prompt: Text(namePrompt))
+                TextField("名称", text: $name, prompt: Text("必填，同时作为配置文件名"))
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -127,6 +124,8 @@ struct AddProfileView: View {
             switch result {
             case .success(let url):
                 fileURL = url
+                // 默认沿用原始文件名，用户可再修改
+                name = url.deletingPathExtension().lastPathComponent
                 errorMessage = nil
             case .failure(let error):
                 errorMessage = error.localizedDescription
@@ -135,8 +134,7 @@ struct AddProfileView: View {
     }
 
     private func add() async {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let name = trimmedName.isEmpty ? nil : trimmedName
+        let name = trimmedName
         errorMessage = nil
 
         do {

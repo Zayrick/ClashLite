@@ -33,6 +33,11 @@ enum ProfileDirectory {
     }
 
     /// 打开配置目录；传入的文件存在时在 Finder 中选中它
+    /// 配置文件以名称命名，便于在 Finder 中辨认
+    static func fileURL(forName name: String) -> URL {
+        url.appending(path: "\(name).yaml", directoryHint: .notDirectory)
+    }
+
     static func open(selecting file: URL? = nil) {
         guard createIfNeeded() else { return }
         if let file, FileManager.default.fileExists(atPath: file.path) {
@@ -51,13 +56,15 @@ struct Profile: Codable, Identifiable, Hashable {
     var updatedAt: Date
 
     var fileURL: URL {
-        ProfileDirectory.url.appending(path: "\(id.uuidString).yaml", directoryHint: .notDirectory)
+        ProfileDirectory.fileURL(forName: name)
     }
 }
 
 enum ProfileError: LocalizedError {
     case badStatus(Int)
     case invalidContent
+    case invalidName
+    case duplicateName(String)
     case readFailed
     case saveFailed
 
@@ -65,6 +72,8 @@ enum ProfileError: LocalizedError {
         switch self {
         case .badStatus(let code): "订阅请求失败（HTTP \(code)）"
         case .invalidContent: "内容不是有效的 Clash 配置"
+        case .invalidName: "名称不能为空，不能以“.”开头，也不能包含“/”或“:”"
+        case .duplicateName(let name): "已存在名为“\(name)”的配置"
         case .readFailed: "无法读取所选文件"
         case .saveFailed: "无法保存配置文件"
         }
@@ -97,16 +106,16 @@ final class ProfileStore {
     }
 
     /// 下载订阅并保存为新配置
-    func addSubscription(url: URL, name: String?) async throws {
-        let (data, suggestedName) = try await Self.download(url)
-        try add(
-            Profile(id: UUID(), name: name ?? suggestedName ?? url.host() ?? "订阅", url: url, updatedAt: .now),
-            data: data
-        )
+    func addSubscription(url: URL, name: String) async throws {
+        try checkName(name)
+        let data = try await Self.download(url)
+        try add(Profile(id: UUID(), name: name, url: url, updatedAt: .now), data: data)
     }
 
     /// 复制本地配置文件到配置目录，原文件不受影响
-    func importLocal(fileURL: URL, name: String?) throws {
+    func importLocal(fileURL: URL, name: String) throws {
+        try checkName(name)
+
         let accessing = fileURL.startAccessingSecurityScopedResource()
         defer { if accessing { fileURL.stopAccessingSecurityScopedResource() } }
 
@@ -119,14 +128,25 @@ final class ProfileStore {
         }
         try Self.validate(data)
 
-        try add(
-            Profile(id: UUID(), name: name ?? fileURL.deletingPathExtension().lastPathComponent, url: nil, updatedAt: .now),
-            data: data
-        )
+        try add(Profile(id: UUID(), name: name, url: nil, updatedAt: .now), data: data)
+    }
+
+    /// 名称即文件名：需合法且不与已有配置或目录中的文件重复（APFS 默认不区分大小写）
+    private func checkName(_ name: String) throws {
+        guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains(":") else {
+            throw ProfileError.invalidName
+        }
+        let exists = profiles.contains { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+            || FileManager.default.fileExists(atPath: ProfileDirectory.fileURL(forName: name).path)
+        if exists {
+            throw ProfileError.duplicateName(name)
+        }
     }
 
     /// 写入配置文件并加入列表，首个配置会自动选中
     private func add(_ profile: Profile, data: Data) throws {
+        // 下载期间可能已添加同名配置，写入前再确认一次
+        try checkName(profile.name)
         guard ProfileDirectory.createIfNeeded() else { throw ProfileError.saveFailed }
         do {
             try data.write(to: profile.fileURL, options: .atomic)
@@ -163,7 +183,7 @@ final class ProfileStore {
     }
 
     /// 以 clash.meta 的 UA 请求，使订阅服务返回 Clash 格式的 YAML
-    private static func download(_ url: URL) async throws -> (Data, String?) {
+    private static func download(_ url: URL) async throws -> Data {
         var request = URLRequest(url: url, timeoutInterval: 30)
         request.setValue("clash.meta", forHTTPHeaderField: "User-Agent")
 
@@ -173,9 +193,7 @@ final class ProfileStore {
         }
 
         try validate(data)
-
-        let disposition = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition")
-        return (data, disposition.flatMap(fileName(fromContentDisposition:)))
+        return data
     }
 
     /// 粗略校验：Clash 配置至少包含节点或节点提供者
@@ -184,24 +202,5 @@ final class ProfileStore {
         guard text.contains("proxies:") || text.contains("proxy-providers:") else {
             throw ProfileError.invalidContent
         }
-    }
-
-    /// 解析 `attachment; filename*=UTF-8''%E8%AE%A2%E9%98%85` 或 `filename="name.yaml"`
-    private static func fileName(fromContentDisposition header: String) -> String? {
-        let parts = header.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
-
-        var name: String?
-        if let part = parts.first(where: { $0.lowercased().hasPrefix("filename*=") }),
-           let range = part.range(of: "''") {
-            name = String(part[range.upperBound...]).removingPercentEncoding
-        } else if let part = parts.first(where: { $0.lowercased().hasPrefix("filename=") }) {
-            name = String(part.dropFirst("filename=".count)).trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-        }
-
-        guard let name, !name.isEmpty else { return nil }
-        for ext in [".yaml", ".yml"] where name.lowercased().hasSuffix(ext) {
-            return String(name.dropLast(ext.count))
-        }
-        return name
     }
 }
