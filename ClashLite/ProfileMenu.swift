@@ -7,9 +7,10 @@
 
 import SwiftUI
 
-/// 菜单中的配置管理：新增、切换、编辑（远程配置仅查看）/更新当前配置、自动更新、配置覆写、全局覆写
+/// 菜单中的配置管理：新增、切换、编辑（远程配置仅查看）/更新当前配置、自动更新、配置覆写、全局覆写、查看运行时配置
 struct ProfileMenu: View {
     @Bindable var profileStore: ProfileStore
+    var core: CoreManager
 
     @Environment(\.openWindow) private var openWindow
 
@@ -78,6 +79,12 @@ struct ProfileMenu: View {
             Button("全局覆写…") {
                 open(ConfigOverrideView.windowID, value: ConfigOverride.global)
             }
+
+            Button("查看运行时配置…") {
+                openWindow(id: RuntimeConfigView.windowID)
+                NSApplication.shared.activate()
+            }
+            .disabled(core.runtimeConfig == nil)
         }
     }
 

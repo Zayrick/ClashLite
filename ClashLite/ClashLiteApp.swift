@@ -63,7 +63,7 @@ struct ClashLiteApp: App {
 
             Divider()
 
-            ProfileMenu(profileStore: profileStore)
+            ProfileMenu(profileStore: profileStore, core: core)
 
             Picker("模式：\(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
@@ -149,6 +149,13 @@ struct ClashLiteApp: App {
                     .environment(core)
                     .environment(profileStore)
             }
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("运行时配置", id: RuntimeConfigView.windowID) {
+            RuntimeConfigView()
+                .environment(core)
         }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)

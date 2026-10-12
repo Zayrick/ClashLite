@@ -33,6 +33,7 @@ final class CoreManager {
             status == .running ? startSync() : stopSync()
             if status != .running {
                 proxies = [:]
+                runtimeConfig = nil
             }
         }
     }
@@ -54,6 +55,9 @@ final class CoreManager {
             UserDefaults.standard.set(isTunEnabled, forKey: Self.tunKey)
         }
     }
+
+    /// 内核正在使用的配置，即最近一次成功传入内核的内容
+    private(set) var runtimeConfig: String?
 
     /// 菜单中可快捷切换的策略组，随 proxies 和 mode 更新
     private(set) var proxyGroups: [ProxyGroup] = []
@@ -313,6 +317,7 @@ final class CoreManager {
             let rendered = try await Self.render(config, profileURL: profileURL)
             try await controller.reloadConfigs(payload: rendered.payload)
             uiName = rendered.uiName
+            runtimeConfig = rendered.payload
             await refreshProxies()
         } catch {
             Notifier.post(id: "core", title: "配置加载失败", body: error.localizedDescription)
@@ -365,6 +370,7 @@ final class CoreManager {
 
             let version = try await waitUntilReady(process)
             status = .running
+            runtimeConfig = rendered.payload
             await refreshProxies()
             Notifier.post(id: "core", title: "内核已启动", body: "mihomo \(version)，\(mode.title)模式")
         } catch {
