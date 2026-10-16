@@ -50,19 +50,26 @@ nonisolated struct ProxyGroup: Identifiable, Equatable {
 
         return names.compactMap { name in
             guard let proxy = proxies[name], let all = proxy.all, !all.isEmpty, proxy.hidden != true else { return nil }
-            let members = all.map { Member(name: $0, delay: delay(of: $0, in: proxies)) }
+            let members = all.map { Member(name: $0, delay: delay(of: $0, testURL: proxy.testUrl, in: proxies)) }
             let isSelectable = ["Selector", "URLTest", "Fallback"].contains(proxy.type)
             return ProxyGroup(name: name, now: proxy.now, fixed: proxy.fixed.flatMap { $0.isEmpty ? nil : $0 }, members: members, isSelectable: isSelectable)
         }
     }
 
-    /// 内核不会为策略组记录延迟，沿 now 找到实际选中的节点
-    private static func delay(of name: String, in proxies: [String: CoreController.Proxy]) -> Int? {
+    /// 内核不会为策略组记录延迟，沿 now 找到实际选中的节点。
+    /// 内核按测速 URL 分别记录延迟，优先取所在策略组 URL 下的结果，再退回默认记录
+    private static func delay(of name: String, testURL: String?, in proxies: [String: CoreController.Proxy]) -> Int? {
         var current = name
+        var testURL = testURL
         for _ in 0..<8 {
             guard let proxy = proxies[current] else { return nil }
             guard proxy.all != nil, let now = proxy.now, !now.isEmpty, now != current else {
-                return proxy.history?.last?.delay
+                let history = testURL.flatMap { proxy.extra?[$0]?.history }.flatMap { $0.isEmpty ? nil : $0 } ?? proxy.history
+                return history?.last?.delay
+            }
+            // 嵌套策略组中的节点由该组按自己的 URL 测速
+            if let url = proxy.testUrl, !url.isEmpty {
+                testURL = url
             }
             current = now
         }

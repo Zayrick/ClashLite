@@ -103,6 +103,7 @@ nonisolated struct CoreController {
     /// 节点或策略组，策略组才有 all 和 now
     struct Proxy: Decodable {
         struct History: Decodable { var delay: Int }
+        struct Extra: Decodable { var history: [History]? }
         var type: String
         var all: [String]?
         var now: String?
@@ -110,6 +111,10 @@ nonisolated struct CoreController {
         var fixed: String?
         var hidden: Bool?
         var history: [History]?
+        /// 按测速 URL 分别记录的结果，策略组自定义了 url 时测速结果只在这里
+        var extra: [String: Extra]?
+        /// 策略组的测速 URL
+        var testUrl: String?
     }
 
     /// GET /proxies，读取全部节点和策略组
