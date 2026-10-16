@@ -47,7 +47,6 @@ struct ClashLiteApp: App {
     var body: some Scene {
         MenuBarExtra {
             Text("内核\(core.status.title)")
-                .badge(coreVersion.version)
 
             Button("打开面板") {
                 core.openPanel()
@@ -103,6 +102,14 @@ struct ClashLiteApp: App {
             Divider()
 
             Menu("更多") {
+                Text("App 版本")
+                    .badge(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+
+                Text("内核版本")
+                    .badge(coreVersion.version)
+
+                Divider()
+
                 Button("重启内核") {
                     core.restart()
                 }
