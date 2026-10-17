@@ -23,8 +23,26 @@ nonisolated enum ProxyMode: String, CaseIterable, Identifiable {
     }
 }
 
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        // 注销、关机等由系统发出的退出请求不弹窗，避免阻塞
+        if NSAppleEventManager.shared().currentAppleEvent?.eventID == kAEQuitApplication {
+            return .terminateNow
+        }
+
+        NSApplication.shared.activate()
+        let alert = NSAlert()
+        alert.messageText = "确定要退出 ClashLite 吗？"
+        alert.informativeText = "退出后内核将停止运行。"
+        alert.addButton(withTitle: "退出")
+        alert.addButton(withTitle: "取消")
+        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+    }
+}
+
 @main
 struct ClashLiteApp: App {
+    @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
     @State private var coreVersion = CoreVersionMonitor()
     @State private var launchAtLogin = LaunchAtLogin()
     @State private var profileStore: ProfileStore
