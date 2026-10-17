@@ -81,6 +81,10 @@ final class CoreManager {
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     @ObservationIgnored private var isSyncing = false
+    @ObservationIgnored private var dnsMonitor: SystemDNSMonitor?
+    /// 内核最近一次加载配置时的系统 DNS 服务器
+    @ObservationIgnored private var loadedDNSServers: [String] = []
+    @ObservationIgnored private var dnsChangeTask: Task<Void, Never>?
     @ObservationIgnored private static let syncInterval = Duration.seconds(3)
     @ObservationIgnored private static let modeKey = "proxyMode"
     @ObservationIgnored private static let tunKey = "tunEnabled"
@@ -103,6 +107,10 @@ final class CoreManager {
             MainActor.assumeIsolated {
                 self?.process?.terminate()
             }
+        }
+
+        dnsMonitor = SystemDNSMonitor { [weak self] in
+            self?.systemDNSDidChange()
         }
 
         observeSelection(of: profileStore)
@@ -306,6 +314,25 @@ final class CoreManager {
         }
     }
 
+    /// 内核的 system DNS 读到可用的服务器后缓存 5 分钟。开机时内核先于网络启动，可能缓存了过渡阶段
+    /// 不可用的服务器（例如关闭 IPv6 时的 IPv6 服务器），导致断网；系统 DNS 变化后重载配置使其重新读取
+    private func systemDNSDidChange() {
+        dnsChangeTask?.cancel()
+        dnsChangeTask = Task {
+            // 网络就绪过程中会连续变化，resolv.conf 的更新也稍有延迟
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            enqueue { await self.reloadIfDNSChanged() }
+        }
+    }
+
+    private func reloadIfDNSChanged() async {
+        let servers = dnsMonitor?.servers ?? []
+        guard status == .running, !servers.isEmpty, servers != loadedDNSServers else { return }
+        NSLog("系统 DNS 变为 \(servers)，重载内核配置")
+        await apply()
+    }
+
     /// 内核运行中则热重载，否则启动
     private func apply() async {
         guard status == .running, let profileURL else {
@@ -313,6 +340,7 @@ final class CoreManager {
             return
         }
 
+        loadedDNSServers = dnsMonitor?.servers ?? []
         do {
             let rendered = try await Self.render(config, profileURL: profileURL)
             try await controller.reloadConfigs(payload: rendered.payload)
@@ -364,6 +392,7 @@ final class CoreManager {
             // 内核文件被替换后权限会丢失，启动前重新确认
             await ensureTunPermission()
             let rendered = try await Self.render(config, profileURL: profileURL)
+            loadedDNSServers = dnsMonitor?.servers ?? []
             let process = try launch(payload: rendered.payload)
             uiName = rendered.uiName
             self.process = process
