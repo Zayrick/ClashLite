@@ -10,7 +10,7 @@ import SwiftUI
 /// 编辑 YAML 的窗口内容：保存期间显示进度，失败时在底部显示错误，成功后关闭窗口；不提供 save 时为只读查看
 struct YAMLEditor: View {
     @Binding var text: String
-    var hint: String
+    var hint: LocalizedStringKey
     var save: (() async throws -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -29,7 +29,7 @@ struct YAMLEditor: View {
                 if isSaving {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在校验…")
+                    Text("Validating…")
                         .foregroundStyle(.secondary)
                 } else if let errorMessage {
                     Text(errorMessage)
@@ -44,18 +44,18 @@ struct YAMLEditor: View {
                 Spacer()
 
                 if let save {
-                    Button("取消", role: .cancel) {
+                    Button("Cancel", role: .cancel) {
                         dismiss()
                     }
                     .keyboardShortcut(.cancelAction)
 
-                    Button("保存") {
+                    Button("Save") {
                         Task { await performSave(save) }
                     }
                     .keyboardShortcut("s")
                     .disabled(isSaving)
                 } else {
-                    Button("关闭", role: .cancel) {
+                    Button("Close", role: .cancel) {
                         dismiss()
                     }
                     .keyboardShortcut(.cancelAction)

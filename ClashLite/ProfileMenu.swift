@@ -23,13 +23,13 @@ struct ProfileMenu: View {
     }
 
     var body: some View {
-        Menu("配置：\(profileStore.selected?.displayName ?? "无")") {
+        Menu("Profile: \(profileStore.selected?.displayName ?? String(localized: "None"))") {
             AddProfileButton()
 
             if !profileStore.profiles.isEmpty {
                 Divider()
 
-                Picker("配置", selection: $profileStore.selectedName) {
+                Picker("Profile", selection: $profileStore.selectedName) {
                     ForEach(profileStore.profiles) { profile in
                         Text(profile.displayName).tag(Optional(profile.name))
                     }
@@ -40,7 +40,7 @@ struct ProfileMenu: View {
 
             Divider()
 
-            Button(current?.subscription == nil ? "编辑配置…" : "查看配置…") {
+            Button(current?.subscription == nil ? "Edit Profile…" : "View Profile…") {
                 guard let current else { return }
                 open(ProfileEditorView.windowID, value: current.name)
             }
@@ -48,13 +48,13 @@ struct ProfileMenu: View {
 
             if let current, let subscription = current.subscription {
                 let isUpdating = profileStore.updatingNames.contains(current.name)
-                Button(isUpdating ? "正在更新配置…" : "更新配置") {
+                Button(isUpdating ? "Updating Profile…" : "Update Profile") {
                     Task { await update(current) }
                 }
                 .badge(subscription.updatedAt.formatted(date: .numeric, time: .shortened))
                 .disabled(isUpdating)
 
-                Picker("自动更新：\(Self.title(of: subscription.interval))", selection: Binding(
+                Picker("Auto Update: \(Self.title(of: subscription.interval))", selection: Binding(
                     get: { subscription.interval },
                     set: { profileStore.setInterval($0, of: current) }
                 )) {
@@ -68,7 +68,7 @@ struct ProfileMenu: View {
                 }
             }
 
-            Button("配置覆写…") {
+            Button("Profile Override…") {
                 guard let current else { return }
                 open(ConfigOverrideView.windowID, value: ConfigOverride.profile(current.name))
             }
@@ -76,11 +76,11 @@ struct ProfileMenu: View {
 
             Divider()
 
-            Button("全局覆写…") {
+            Button("Global Override…") {
                 open(ConfigOverrideView.windowID, value: ConfigOverride.global)
             }
 
-            Button("查看运行时配置…") {
+            Button("View Runtime Config…") {
                 openWindow(id: RuntimeConfigView.windowID)
                 NSApplication.shared.activate()
             }
@@ -95,15 +95,15 @@ struct ProfileMenu: View {
     }
 
     private static func title(of interval: Int?) -> String {
-        interval.map { "每 \($0) 小时" } ?? "关闭"
+        interval.map { String(localized: "Every \($0) hours") } ?? String(localized: "Off")
     }
 
     private func update(_ profile: Profile) async {
         do {
             try await profileStore.update(profile)
-            Notifier.post(id: "profile", title: "配置已更新", body: profile.name)
+            Notifier.post(id: "profile", title: "Profile Updated", body: profile.name)
         } catch {
-            Notifier.post(id: "profile", title: "更新配置失败", body: error.localizedDescription)
+            Notifier.post(id: "profile", title: "Failed to Update Profile", body: error.localizedDescription)
         }
     }
 }

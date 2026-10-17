@@ -13,7 +13,7 @@ enum CoreControllerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .badStatus(let code, let message):
-            message.isEmpty ? "内核接口请求失败（HTTP \(code)）" : message
+            message.isEmpty ? String(localized: "Core API request failed (HTTP \(code))") : message
         }
     }
 }

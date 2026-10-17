@@ -27,16 +27,16 @@ struct ProfileEditorView: View {
         profile?.subscription != nil
     }
 
-    private var hint: String {
+    private var hint: LocalizedStringKey {
         isReadOnly
-            ? "远程配置为只读，如需修改请使用配置覆写"
-            : "保存前会校验配置本身及应用覆写后的配置"
+            ? "Remote profiles are read-only. Use a profile override to make changes."
+            : "The profile itself and the result of applying overrides are validated before saving."
     }
 
     var body: some View {
         Group {
             if let loadError {
-                ContentUnavailableView("无法打开配置", systemImage: "exclamationmark.triangle", description: Text(loadError))
+                ContentUnavailableView("Unable to Open Profile", systemImage: "exclamationmark.triangle", description: Text(loadError))
                     .frame(minWidth: 520, minHeight: 360)
             } else if let binding = Binding($text) {
                 YAMLEditor(text: binding, hint: hint, save: isReadOnly ? nil : { try await save() })
@@ -45,7 +45,7 @@ struct ProfileEditorView: View {
                     .frame(minWidth: 520, minHeight: 360)
             }
         }
-        .navigationTitle("\(isReadOnly ? "查看配置" : "编辑配置") - \(name)")
+        .navigationTitle(isReadOnly ? "View Profile - \(name)" : "Edit Profile - \(name)")
         .onAppear(perform: load)
     }
 

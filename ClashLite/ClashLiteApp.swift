@@ -16,9 +16,9 @@ nonisolated enum ProxyMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .rule: "规则"
-        case .global: "全局"
-        case .direct: "直连"
+        case .rule: String(localized: "Rule")
+        case .global: String(localized: "Global")
+        case .direct: String(localized: "Direct")
         }
     }
 }
@@ -32,10 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApplication.shared.activate()
         let alert = NSAlert()
-        alert.messageText = "确定要退出 ClashLite 吗？"
-        alert.informativeText = "退出后内核将停止运行。"
-        alert.addButton(withTitle: "退出")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = String(localized: "Are you sure you want to quit ClashLite?")
+        alert.informativeText = String(localized: "The core will stop running after quitting.")
+        alert.addButton(withTitle: String(localized: "Quit"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
     }
 }
@@ -64,35 +64,35 @@ struct ClashLiteApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            Text("内核\(core.status.title)")
+            Text("Core: \(core.status.title)")
 
-            Button("打开面板") {
+            Button("Open Dashboard") {
                 core.openPanel()
             }
             .disabled(core.status != .running || core.isUpdatingPanel)
 
-            Button(core.isUpdatingPanel ? "正在下载面板…" : "更新面板") {
+            Button(core.isUpdatingPanel ? "Downloading Dashboard…" : "Update Dashboard") {
                 core.updatePanel()
             }
             .disabled(core.status != .running || core.isUpdatingPanel)
 
-            Toggle("网卡代理", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
+            Toggle("TUN Mode", isOn: Binding(get: { core.isTunEnabled }, set: { core.setTunEnabled($0) }))
 
             Divider()
 
             ProfileMenu(profileStore: profileStore, core: core)
 
-            Picker("模式：\(core.mode.title)", selection: $core.mode) {
+            Picker("Mode: \(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
                     Text(mode.title).tag(mode)
                 }
             }
 
-            Menu("策略组") {
+            Menu("Proxy Groups") {
                 ForEach(core.proxyGroups) { group in
                     Menu(group.name) {
                         if group.fixed != nil {
-                            Button("解除锁定") {
+                            Button("Unpin") {
                                 core.unfixProxy(in: group.name)
                             }
 
@@ -119,48 +119,48 @@ struct ClashLiteApp: App {
 
             Divider()
 
-            Menu("更多") {
-                Text("App 版本")
+            Menu("More") {
+                Text("App Version")
                     .badge(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
 
-                Text("内核版本")
+                Text("Core Version")
                     .badge(coreVersion.version)
 
                 Divider()
 
-                Button("重启内核") {
+                Button("Restart Core") {
                     core.restart()
                 }
                 .disabled(profileStore.selected == nil)
 
-                Button("关闭所有连接") {
+                Button("Close All Connections") {
                     core.closeAllConnections()
                 }
                 .disabled(core.status != .running)
 
                 Divider()
 
-                Button("打开内核目录") {
+                Button("Open Core Folder") {
                     CoreDirectory.open()
                 }
 
-                Button("打开配置目录") {
+                Button("Open Profiles Folder") {
                     ProfileDirectory.open(selecting: profileStore.selected?.fileURL)
                 }
             }
 
-            Toggle("开机自启", isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }))
+            Toggle("Launch at Login", isOn: Binding(get: { launchAtLogin.isEnabled }, set: { launchAtLogin.setEnabled($0) }))
 
-            Button("退出 ClashLite") {
+            Button("Quit ClashLite") {
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q")
         } label: {
             Image(core.isTunEnabled ? .menuBarIconTun : .menuBarIcon)
-                .accessibilityLabel("ClashLite")
+                .accessibilityLabel(Text(verbatim: "ClashLite"))
         }
 
-        Window("新增配置", id: AddProfileView.windowID) {
+        Window("Add Profile", id: AddProfileView.windowID) {
             AddProfileView()
                 .environment(profileStore)
         }
@@ -168,7 +168,7 @@ struct ClashLiteApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
-        WindowGroup("编辑配置", id: ProfileEditorView.windowID, for: String.self) { $name in
+        WindowGroup("Edit Profile", id: ProfileEditorView.windowID, for: String.self) { $name in
             if let name {
                 ProfileEditorView(name: name)
                     .environment(core)
@@ -178,14 +178,14 @@ struct ClashLiteApp: App {
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
-        Window("运行时配置", id: RuntimeConfigView.windowID) {
+        Window("Runtime Config", id: RuntimeConfigView.windowID) {
             RuntimeConfigView()
                 .environment(core)
         }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 
-        WindowGroup("覆写", id: ConfigOverrideView.windowID, for: ConfigOverride.self) { $target in
+        WindowGroup("Override", id: ConfigOverrideView.windowID, for: ConfigOverride.self) { $target in
             if let target {
                 ConfigOverrideView(target: target)
                     .environment(core)

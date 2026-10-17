@@ -19,7 +19,7 @@ nonisolated struct ProxyGroup: Identifiable, Equatable {
         var delayText: String? {
             switch delay {
             case nil: nil
-            case 0: "超时"
+            case 0: String(localized: "Timeout")
             case let delay?: "\(delay)ms"
             }
         }

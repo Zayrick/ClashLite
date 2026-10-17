@@ -16,8 +16,8 @@ enum ProfileSource: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .subscription: "订阅"
-        case .local: "本地文件"
+        case .subscription: String(localized: "Subscription")
+        case .local: String(localized: "Local File")
         }
     }
 }
@@ -59,7 +59,7 @@ struct AddProfileView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Picker("类型", selection: $source) {
+                Picker("Type", selection: $source) {
                     ForEach(ProfileSource.allCases) { source in
                         Text(source.title).tag(source)
                     }
@@ -68,22 +68,22 @@ struct AddProfileView: View {
 
                 switch source {
                 case .subscription:
-                    TextField("订阅链接", text: $urlString, prompt: Text("https://"))
+                    TextField("Subscription URL", text: $urlString, prompt: Text(verbatim: "https://"))
                 case .local:
-                    LabeledContent("配置文件") {
+                    LabeledContent("Config File") {
                         HStack {
-                            Text(fileURL?.lastPathComponent ?? "未选择")
+                            Text(fileURL?.lastPathComponent ?? String(localized: "None Selected"))
                                 .foregroundStyle(fileURL == nil ? .secondary : .primary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
-                            Button("选择…") {
+                            Button("Choose…") {
                                 isImporterPresented = true
                             }
                         }
                     }
                 }
 
-                TextField("名称", text: $name, prompt: Text("必填，同时作为配置文件名"))
+                TextField("Name", text: $name, prompt: Text("Required, also used as the file name"))
 
                 if let errorMessage {
                     Text(errorMessage)
@@ -97,18 +97,18 @@ struct AddProfileView: View {
                 if isLoading {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在下载…")
+                    Text("Downloading…")
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                Button("取消", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button("添加") {
+                Button("Add") {
                     Task { await add() }
                 }
                 .keyboardShortcut(.defaultAction)
@@ -162,7 +162,7 @@ struct AddProfileButton: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("新增配置…") {
+        Button("Add Profile…") {
             openWindow(id: AddProfileView.windowID)
             NSApplication.shared.activate()
         }

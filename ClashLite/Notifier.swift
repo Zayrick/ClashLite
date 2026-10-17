@@ -23,9 +23,9 @@ enum Notifier {
     }
 
     /// 同一类通知使用相同标识，新通知会替换旧的
-    static func post(id: String, title: String, body: String) {
+    static func post(id: String, title: LocalizedStringResource, body: String) {
         let content = UNMutableNotificationContent()
-        content.title = title
+        content.title = String(localized: title)
         content.body = body
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
     }

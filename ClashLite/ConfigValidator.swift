@@ -15,9 +15,9 @@ nonisolated enum ConfigLayer {
 
     var title: String {
         switch self {
-        case .profile: "配置"
-        case .profileOverride: "应用配置覆写后的配置"
-        case .globalOverride: "应用全局覆写后的配置"
+        case .profile: String(localized: "Profile")
+        case .profileOverride: String(localized: "Profile with profile override applied")
+        case .globalOverride: String(localized: "Profile with global override applied")
         }
     }
 }
@@ -27,7 +27,7 @@ nonisolated enum ConfigValidationError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .failed(let layer, let message): "\(layer.title)校验失败：\(message ?? "未知错误")"
+        case .failed(let layer, let message): String(localized: "Validation failed (\(layer.title)): \(message ?? String(localized: "Unknown error"))")
         }
     }
 }

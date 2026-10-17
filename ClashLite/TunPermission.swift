@@ -14,9 +14,9 @@ enum TunPermissionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .cancelled: "已取消授权"
+        case .cancelled: String(localized: "Authorization canceled")
         case .failed(let message): message
-        case .verificationFailed: "授权后内核权限仍不正确"
+        case .verificationFailed: String(localized: "Core permissions are still incorrect after authorization")
         }
     }
 }
@@ -72,6 +72,6 @@ enum TunPermission {
         if message.contains("-128") {
             throw TunPermissionError.cancelled
         }
-        throw TunPermissionError.failed(message.isEmpty ? "授权失败" : message)
+        throw TunPermissionError.failed(message.isEmpty ? String(localized: "Authorization failed") : message)
     }
 }

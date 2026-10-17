@@ -14,8 +14,8 @@ enum CoreConfigError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .readFailed: "无法读取配置文件"
-        case .invalidContent: "配置文件不是有效的 YAML 映射"
+        case .readFailed: String(localized: "Unable to read the profile file")
+        case .invalidContent: String(localized: "The profile is not a valid YAML mapping")
         }
     }
 }

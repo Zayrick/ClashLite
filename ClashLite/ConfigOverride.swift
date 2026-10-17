@@ -15,9 +15,9 @@ enum ConfigOverrideError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidYAML(let detail): "YAML 格式错误：\(detail)"
-        case .notMapping: "覆写内容必须是 YAML 映射（键: 值）"
-        case .saveFailed: "无法保存覆写文件"
+        case .invalidYAML(let detail): String(localized: "Invalid YAML: \(detail)")
+        case .notMapping: String(localized: "The override must be a YAML mapping (key: value)")
+        case .saveFailed: String(localized: "Unable to save the override file")
         }
     }
 }
@@ -51,8 +51,8 @@ nonisolated enum ConfigOverride: Codable, Hashable {
 
     var title: String {
         switch self {
-        case .global: "全局覆写"
-        case .profile(let name): "配置覆写 - \(name)"
+        case .global: String(localized: "Global Override")
+        case .profile(let name): String(localized: "Profile Override - \(name)")
         }
     }
 
@@ -143,10 +143,10 @@ struct ConfigOverrideView: View {
         _text = State(initialValue: target.load())
     }
 
-    private var hint: String {
+    private var hint: LocalizedStringKey {
         switch target {
-        case .global: "对所有配置生效，在配置覆写之后合并；列表可用 +key 前置、key+ 追加"
-        case .profile: "只对此配置生效，在全局覆写之前合并；列表可用 +key 前置、key+ 追加"
+        case .global: "Applies to all profiles, merged after the profile override. For lists, use +key to prepend and key+ to append."
+        case .profile: "Applies only to this profile, merged before the global override. For lists, use +key to prepend and key+ to append."
         }
     }
 

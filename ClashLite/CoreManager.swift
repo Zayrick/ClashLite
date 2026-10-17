@@ -19,10 +19,10 @@ final class CoreManager {
 
         var title: String {
             switch self {
-            case .stopped: "未运行"
-            case .starting: "启动中"
-            case .running: "运行中"
-            case .failed: "启动失败"
+            case .stopped: String(localized: "Stopped")
+            case .starting: String(localized: "Starting")
+            case .running: String(localized: "Running")
+            case .failed: String(localized: "Failed to Start")
             }
         }
     }
@@ -160,7 +160,7 @@ final class CoreManager {
             do {
                 try await self.controller.selectProxy(name, in: group)
             } catch {
-                Notifier.post(id: "proxy", title: "切换节点失败", body: error.localizedDescription)
+                Notifier.post(id: "proxy", title: "Failed to Switch Proxy", body: error.localizedDescription)
             }
             await self.refreshProxies()
         }
@@ -175,7 +175,7 @@ final class CoreManager {
             do {
                 try await self.controller.unfixProxy(in: group)
             } catch {
-                Notifier.post(id: "proxy", title: "解除锁定失败", body: error.localizedDescription)
+                Notifier.post(id: "proxy", title: "Failed to Unpin", body: error.localizedDescription)
             }
             await self.refreshProxies()
         }
@@ -188,7 +188,7 @@ final class CoreManager {
             do {
                 try await self.controller.closeAllConnections()
             } catch {
-                Notifier.post(id: "connections", title: "关闭连接失败", body: error.localizedDescription)
+                Notifier.post(id: "connections", title: "Failed to Close Connections", body: error.localizedDescription)
             }
         }
     }
@@ -200,19 +200,19 @@ final class CoreManager {
             NSWorkspace.shared.open(panelURL)
             return
         }
-        downloadPanel(failureTitle: "下载面板失败") {
+        downloadPanel(failureTitle: "Failed to Download Dashboard") {
             NSWorkspace.shared.open(self.panelURL)
         }
     }
 
     /// 从 external-ui-url 重新下载面板
     func updatePanel() {
-        downloadPanel(failureTitle: "更新面板失败") {
-            Notifier.post(id: "panel", title: "面板已更新", body: "在浏览器中重新载入面板页面即可使用新版本")
+        downloadPanel(failureTitle: "Failed to Update Dashboard") {
+            Notifier.post(id: "panel", title: "Dashboard Updated", body: String(localized: "Reload the dashboard page in your browser to use the new version."))
         }
     }
 
-    private func downloadPanel(failureTitle: String, then completion: @escaping () -> Void) {
+    private func downloadPanel(failureTitle: LocalizedStringResource, then completion: @escaping () -> Void) {
         guard !isUpdatingPanel else { return }
         isUpdatingPanel = true
         Task {
@@ -348,7 +348,7 @@ final class CoreManager {
             runtimeConfig = rendered.payload
             await refreshProxies()
         } catch {
-            Notifier.post(id: "core", title: "配置加载失败", body: error.localizedDescription)
+            Notifier.post(id: "core", title: "Failed to Load Config", body: error.localizedDescription)
         }
     }
 
@@ -362,7 +362,7 @@ final class CoreManager {
         } catch {
             isTunEnabled = false
             if case TunPermissionError.cancelled = error {} else {
-                Notifier.post(id: "tun", title: "网卡代理授权失败", body: error.localizedDescription)
+                Notifier.post(id: "tun", title: "TUN Authorization Failed", body: error.localizedDescription)
             }
             return false
         }
@@ -373,7 +373,7 @@ final class CoreManager {
         do {
             try await controller.patchConfigs(body)
         } catch {
-            Notifier.post(id: "core", title: "内核设置失败", body: error.localizedDescription)
+            Notifier.post(id: "core", title: "Failed to Apply Core Settings", body: error.localizedDescription)
         }
     }
 
@@ -401,11 +401,11 @@ final class CoreManager {
             status = .running
             runtimeConfig = rendered.payload
             await refreshProxies()
-            Notifier.post(id: "core", title: "内核已启动", body: "mihomo \(version)，\(mode.title)模式")
+            Notifier.post(id: "core", title: "Core Started", body: String(localized: "mihomo \(version), \(mode.title) mode"))
         } catch {
             await stop()
             status = .failed
-            Notifier.post(id: "core", title: "内核启动失败", body: error.localizedDescription)
+            Notifier.post(id: "core", title: "Failed to Start Core", body: error.localizedDescription)
         }
     }
 
@@ -473,7 +473,7 @@ final class CoreManager {
         guard let process, process.processIdentifier == pid, status == .running else { return }
         self.process = nil
         status = .failed
-        Notifier.post(id: "core", title: "内核已退出", body: Self.lastLogError() ?? "退出代码 \(code)")
+        Notifier.post(id: "core", title: "Core Exited", body: Self.lastLogError() ?? String(localized: "Exit code \(code)"))
     }
 
     @concurrent
@@ -536,10 +536,10 @@ enum CoreError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .binaryNotFound: "未找到内核，请将 mihomo 放入内核目录"
-        case .launchFailed: "无法运行内核"
-        case .timeout: "等待内核响应超时"
-        case .exited(let message): message ?? "内核意外退出"
+        case .binaryNotFound: String(localized: "Core not found. Place mihomo in the core folder.")
+        case .launchFailed: String(localized: "Unable to run the core")
+        case .timeout: String(localized: "Timed out waiting for the core to respond")
+        case .exited(let message): message ?? String(localized: "The core exited unexpectedly")
         }
     }
 }

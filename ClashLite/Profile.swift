@@ -61,7 +61,7 @@ struct Profile: Identifiable, Hashable {
     var id: String { name }
 
     var displayName: String {
-        isDeleted ? "\(name)（已删除）" : name
+        isDeleted ? String(localized: "\(name) (Deleted)") : name
     }
 }
 
@@ -86,12 +86,12 @@ enum ProfileError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .badStatus(let code): "订阅请求失败（HTTP \(code)）"
-        case .invalidName: "名称不能为空，不能以“.”开头，也不能包含“/”或“:”"
-        case .duplicateName(let name): "已存在名为“\(name)”的配置"
-        case .notFound(let name): "配置“\(name)”已不存在"
-        case .readFailed: "无法读取所选文件"
-        case .saveFailed: "无法保存配置文件"
+        case .badStatus(let code): String(localized: "Subscription request failed (HTTP \(code))")
+        case .invalidName: String(localized: "The name can’t be empty, start with “.”, or contain “/” or “:”")
+        case .duplicateName(let name): String(localized: "A profile named “\(name)” already exists")
+        case .notFound(let name): String(localized: "The profile “\(name)” no longer exists")
+        case .readFailed: String(localized: "Unable to read the selected file")
+        case .saveFailed: String(localized: "Unable to save the profile file")
         }
     }
 }
