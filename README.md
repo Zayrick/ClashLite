@@ -28,6 +28,51 @@ No main window, no Dock icon, just a menu bar icon.
 - **Launch at login**
 - **Multilingual**: English, Simplified Chinese, Traditional Chinese, and Russian, following the system language
 
+## Screenshots
+
+English interface with example profiles.
+
+| Menu bar | Profile management |
+| --- | --- |
+| <img src="docs/screenshots/en/menu-bar.png" alt="Menu bar" width="220"> | <img src="docs/screenshots/en/profiles.png" alt="Profile management" width="400"> |
+
+<details>
+<summary>More screenshots</summary>
+
+### Proxy groups
+
+<img src="docs/screenshots/en/proxy-groups.png" alt="Proxy groups" width="300">
+
+### Add a subscription
+
+<img src="docs/screenshots/en/add-subscription.png" alt="Add a subscription" width="420">
+
+### Import a local profile
+
+<img src="docs/screenshots/en/add-local.png" alt="Import a local profile" width="420">
+
+### Edit a local profile
+
+<img src="docs/screenshots/en/edit-profile.png" alt="Edit a local profile" width="760">
+
+### View a subscription profile
+
+<img src="docs/screenshots/en/view-profile.png" alt="View a subscription profile" width="760">
+
+### Profile override
+
+<img src="docs/screenshots/en/profile-override.png" alt="Profile override" width="760">
+
+### Global override
+
+<img src="docs/screenshots/en/global-override.png" alt="Global override" width="760">
+
+### Runtime config
+
+<img src="docs/screenshots/en/runtime-config.png" alt="Runtime config" width="760">
+
+</details>
+
 ## Requirements
 
 - macOS 15 or later

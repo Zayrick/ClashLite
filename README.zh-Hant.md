@@ -28,6 +28,51 @@ ClashLite 的想法很簡單：**只做核心做不了的事，其餘的交給�
 - **登入時啟動**
 - **多語言**：支援英語、簡體中文、繁體中文和俄語，跟隨系統語言
 
+## 介面截圖
+
+使用範例設定檔的繁體中文介面。
+
+| 選單列 | 設定檔管理 |
+| --- | --- |
+| <img src="docs/screenshots/zh-Hant/menu-bar.png" alt="選單列" width="220"> | <img src="docs/screenshots/zh-Hant/profiles.png" alt="設定檔管理" width="400"> |
+
+<details>
+<summary>更多介面截圖</summary>
+
+### 策略群組
+
+<img src="docs/screenshots/zh-Hant/proxy-groups.png" alt="策略群組" width="300">
+
+### 新增訂閱
+
+<img src="docs/screenshots/zh-Hant/add-subscription.png" alt="新增訂閱" width="420">
+
+### 匯入本機設定檔
+
+<img src="docs/screenshots/zh-Hant/add-local.png" alt="匯入本機設定檔" width="420">
+
+### 編輯本機設定檔
+
+<img src="docs/screenshots/zh-Hant/edit-profile.png" alt="編輯本機設定檔" width="760">
+
+### 檢視訂閱設定檔
+
+<img src="docs/screenshots/zh-Hant/view-profile.png" alt="檢視訂閱設定檔" width="760">
+
+### 設定檔覆寫
+
+<img src="docs/screenshots/zh-Hant/profile-override.png" alt="設定檔覆寫" width="760">
+
+### 全域覆寫
+
+<img src="docs/screenshots/zh-Hant/global-override.png" alt="全域覆寫" width="760">
+
+### 執行時設定
+
+<img src="docs/screenshots/zh-Hant/runtime-config.png" alt="執行時設定" width="760">
+
+</details>
+
 ## 系統需求
 
 - macOS 15 或更新版本

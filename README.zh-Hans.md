@@ -28,6 +28,51 @@ ClashLite 的想法很简单：**只做内核做不了的事，其余的交给�
 - **开机自启**
 - **多语言**：支持英语、简体中文、繁体中文和俄语，跟随系统语言
 
+## 界面截图
+
+使用示例配置的简体中文界面。
+
+| 菜单栏 | 配置管理 |
+| --- | --- |
+| <img src="docs/screenshots/zh-Hans/menu-bar.png" alt="菜单栏" width="220"> | <img src="docs/screenshots/zh-Hans/profiles.png" alt="配置管理" width="400"> |
+
+<details>
+<summary>更多界面截图</summary>
+
+### 策略组
+
+<img src="docs/screenshots/zh-Hans/proxy-groups.png" alt="策略组" width="300">
+
+### 添加订阅
+
+<img src="docs/screenshots/zh-Hans/add-subscription.png" alt="添加订阅" width="420">
+
+### 导入本地配置
+
+<img src="docs/screenshots/zh-Hans/add-local.png" alt="导入本地配置" width="420">
+
+### 编辑本地配置
+
+<img src="docs/screenshots/zh-Hans/edit-profile.png" alt="编辑本地配置" width="760">
+
+### 查看订阅配置
+
+<img src="docs/screenshots/zh-Hans/view-profile.png" alt="查看订阅配置" width="760">
+
+### 配置覆写
+
+<img src="docs/screenshots/zh-Hans/profile-override.png" alt="配置覆写" width="760">
+
+### 全局覆写
+
+<img src="docs/screenshots/zh-Hans/global-override.png" alt="全局覆写" width="760">
+
+### 运行时配置
+
+<img src="docs/screenshots/zh-Hans/runtime-config.png" alt="运行时配置" width="760">
+
+</details>
+
 ## 系统要求
 
 - macOS 15 或更高版本

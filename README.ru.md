@@ -28,6 +28,51 @@
 - **Запуск при входе в систему**
 - **Многоязычность**: английский, упрощённый китайский, традиционный китайский и русский, в соответствии с языком системы
 
+## Скриншоты
+
+Русский интерфейс с примерами профилей.
+
+| Меню приложения | Управление профилями |
+| --- | --- |
+| <img src="docs/screenshots/ru/menu-bar.png" alt="Меню приложения" width="220"> | <img src="docs/screenshots/ru/profiles.png" alt="Управление профилями" width="400"> |
+
+<details>
+<summary>Другие скриншоты</summary>
+
+### Группы прокси
+
+<img src="docs/screenshots/ru/proxy-groups.png" alt="Группы прокси" width="300">
+
+### Добавление подписки
+
+<img src="docs/screenshots/ru/add-subscription.png" alt="Добавление подписки" width="420">
+
+### Импорт локального профиля
+
+<img src="docs/screenshots/ru/add-local.png" alt="Импорт локального профиля" width="420">
+
+### Редактирование локального профиля
+
+<img src="docs/screenshots/ru/edit-profile.png" alt="Редактирование локального профиля" width="760">
+
+### Просмотр профиля подписки
+
+<img src="docs/screenshots/ru/view-profile.png" alt="Просмотр профиля подписки" width="760">
+
+### Переопределения профиля
+
+<img src="docs/screenshots/ru/profile-override.png" alt="Переопределения профиля" width="760">
+
+### Глобальные переопределения
+
+<img src="docs/screenshots/ru/global-override.png" alt="Глобальные переопределения" width="760">
+
+### Активная конфигурация
+
+<img src="docs/screenshots/ru/runtime-config.png" alt="Активная конфигурация" width="760">
+
+</details>
+
 ## Системные требования
 
 - macOS 15 или новее
