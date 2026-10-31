@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-nonisolated enum ProxyMode: String, CaseIterable, Identifiable {
+nonisolated enum ProxyMode: String, CaseIterable, Identifiable, Codable {
     case rule
     case global
     case direct
@@ -46,12 +46,16 @@ struct ClashLiteApp: App {
     @State private var coreVersion = CoreVersionMonitor()
     @State private var launchAtLogin = LaunchAtLogin()
     @State private var profileStore: ProfileStore
+    @State private var wiFiAutoSwitch: WiFiAutoSwitch
     @State private var core: CoreManager
 
     init() {
         CoreDirectory.installBundledIfNeeded()
         let profileStore = ProfileStore()
+        // 先按当前 Wi-Fi 选好配置、TUN 和代理模式，内核直接以它们启动
+        let wiFiAutoSwitch = WiFiAutoSwitch(profileStore: profileStore)
         let core = CoreManager(profileStore: profileStore)
+        wiFiAutoSwitch.attach(core)
         // 手动或自动更新正在使用的订阅后，重新加载内核
         profileStore.onUpdate = { [weak profileStore, weak core] name in
             if profileStore?.selectedName == name {
@@ -59,6 +63,7 @@ struct ClashLiteApp: App {
             }
         }
         _profileStore = State(initialValue: profileStore)
+        _wiFiAutoSwitch = State(initialValue: wiFiAutoSwitch)
         _core = State(initialValue: core)
     }
 
@@ -80,7 +85,7 @@ struct ClashLiteApp: App {
 
             Divider()
 
-            ProfileMenu(profileStore: profileStore, core: core)
+            ProfileMenu(profileStore: profileStore, core: core, wiFiAutoSwitch: wiFiAutoSwitch)
 
             Picker("Mode: \(core.mode.title)", selection: $core.mode) {
                 ForEach(ProxyMode.allCases) { mode in
@@ -184,6 +189,16 @@ struct ClashLiteApp: App {
             RuntimeConfigView()
                 .environment(core)
         }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("Switch by Wi-Fi", id: WiFiAutoSwitchView.windowID) {
+            WiFiAutoSwitchView()
+                .environment(wiFiAutoSwitch)
+                .environment(core)
+                .environment(profileStore)
+        }
+        .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
 

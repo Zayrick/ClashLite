@@ -24,6 +24,7 @@ No main window, no Dock icon, just a menu bar icon.
 - **Overrides**: "profile overrides" (apply to a single profile) and a "global override" (applies to all profiles), deep-merged as YAML
 - **Menu bar shortcuts**: switch proxy mode (Rule / Global / Direct), switch proxies in proxy groups (with latency), unpin, close all connections, restart the core
 - **TUN mode**: authorize only once; DNS is automatically switched to fake-ip mode when enabled
+- **Switch by Wi-Fi**: set the profile, TUN mode, and proxy mode for each Wi-Fi network (plus one set for all other networks); when the network changes they're applied together with a single core hot reload. Location Services permission (required by macOS to read the Wi-Fi name) is only requested when the feature is turned on
 - **Dashboard sync**: changing the mode or switching proxies in the dashboard is synced back to the menu bar and kept across core restarts
 - **Launch at login**
 - **Multilingual**: English, Simplified Chinese, Traditional Chinese, and Russian, following the system language

@@ -79,6 +79,7 @@ final class CoreManager {
     @ObservationIgnored private var profileURL: URL?
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var operation: Task<Void, Never>?
+    @ObservationIgnored private var isApplyScheduled = false
     @ObservationIgnored private var syncTask: Task<Void, Never>?
     @ObservationIgnored private var isSyncing = false
     @ObservationIgnored private var dnsMonitor: SystemDNSMonitor?
@@ -134,16 +135,13 @@ final class CoreManager {
     func setTunEnabled(_ enabled: Bool) {
         guard enabled != isTunEnabled else { return }
         isTunEnabled = enabled
-        enqueue {
-            guard await self.ensureTunPermission() else { return }
-            await self.apply()
-        }
+        scheduleApply()
     }
 
     /// 重新生成配置并应用，例如修改覆写之后
     func reload() {
         guard profileURL != nil else { return }
-        enqueue { await self.apply() }
+        scheduleApply()
     }
 
     /// 手动重启，例如放入内核文件之后
@@ -244,7 +242,19 @@ final class CoreManager {
         }
         guard !profile.isDeleted, profile.fileURL != profileURL else { return }
         profileURL = profile.fileURL
-        enqueue { await self.apply() }
+        scheduleApply()
+    }
+
+    /// 排队中的应用会读取执行时最新的配置和设置，尚未执行时不再重复排队，
+    /// 使同时修改的配置、TUN（例如按 Wi-Fi 切换）只重载一次
+    private func scheduleApply() {
+        guard !isApplyScheduled else { return }
+        isApplyScheduled = true
+        enqueue {
+            self.isApplyScheduled = false
+            await self.ensureTunPermission()
+            await self.apply()
+        }
     }
 
     /// 操作依次执行，避免启动、重载交错

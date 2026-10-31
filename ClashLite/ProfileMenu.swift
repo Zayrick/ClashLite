@@ -7,10 +7,11 @@
 
 import SwiftUI
 
-/// 菜单中的配置管理：新增、切换、编辑（远程配置仅查看）/更新当前配置、自动更新、配置覆写、全局覆写、查看运行时配置
+/// 菜单中的配置管理：新增、切换、按 Wi-Fi 自动切换、编辑（远程配置仅查看）/更新当前配置、自动更新、配置覆写、全局覆写、查看运行时配置
 struct ProfileMenu: View {
     @Bindable var profileStore: ProfileStore
     var core: CoreManager
+    var wiFiAutoSwitch: WiFiAutoSwitch
 
     @Environment(\.openWindow) private var openWindow
 
@@ -37,6 +38,8 @@ struct ProfileMenu: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             }
+
+            WiFiAutoSwitchButton(autoSwitch: wiFiAutoSwitch)
 
             Divider()
 

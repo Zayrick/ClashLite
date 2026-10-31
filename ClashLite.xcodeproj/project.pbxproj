@@ -261,10 +261,14 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -294,10 +298,14 @@
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_LOCATION = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
+				INFOPLIST_KEY_NSLocationUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ClashLite uses Location Services only to read the Wi-Fi name for switching settings automatically by network. Your location is not used.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
