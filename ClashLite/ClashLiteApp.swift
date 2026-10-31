@@ -140,6 +140,8 @@ struct ClashLiteApp: App {
 
                 Divider()
 
+                CoreLogButton()
+
                 Button("Open Core Folder") {
                     CoreDirectory.open()
                 }
@@ -181,6 +183,12 @@ struct ClashLiteApp: App {
         Window("Runtime Config", id: RuntimeConfigView.windowID) {
             RuntimeConfigView()
                 .environment(core)
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("Core Log", id: CoreLogView.windowID) {
+            CoreLogView()
         }
         .defaultLaunchBehavior(.suppressed)
         .restorationBehavior(.disabled)
