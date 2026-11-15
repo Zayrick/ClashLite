@@ -77,6 +77,14 @@ nonisolated enum ConfigOverride: Codable, Hashable {
         Self.merge(try Self.parse(load()), into: &root)
     }
 
+    /// 配置重命名时随之移动配置覆写；目标位置残留的旧覆写会被替换
+    static func renameProfileOverride(from oldName: String, to newName: String) {
+        let source = profile(oldName).url
+        let destination = profile(newName).url
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        _ = FileManager.moveItemAllowingCaseChange(at: source, to: destination)
+    }
+
     /// 删除配置已不存在的配置覆写，避免之后同名的配置沿用未经校验的覆写
     static func removeProfileOverrides(except names: Set<String>) {
         let files = (try? FileManager.default.contentsOfDirectory(

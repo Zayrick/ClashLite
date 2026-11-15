@@ -50,6 +50,17 @@ enum ProfileDirectory {
     }
 }
 
+extension FileManager {
+    /// 用 rename(2) 移动文件，支持在不区分大小写的卷上只修改文件名的大小写（moveItem 会认为目标已存在）
+    nonisolated static func moveItemAllowingCaseChange(at source: URL, to destination: URL) -> Bool {
+        guard Darwin.rename(source.path, destination.path) == 0 else {
+            NSLog("移动文件失败：\(String(cString: strerror(errno)))")
+            return false
+        }
+        return true
+    }
+}
+
 struct Profile: Identifiable, Hashable {
     var name: String
     var fileURL: URL
@@ -83,6 +94,7 @@ enum ProfileError: LocalizedError {
     case notFound(String)
     case readFailed
     case saveFailed
+    case deleteFailed
 
     var errorDescription: String? {
         switch self {
@@ -92,6 +104,7 @@ enum ProfileError: LocalizedError {
         case .notFound(let name): String(localized: "The profile “\(name)” no longer exists")
         case .readFailed: String(localized: "Unable to read the selected file")
         case .saveFailed: String(localized: "Unable to save the profile file")
+        case .deleteFailed: String(localized: "Unable to move the profile to the Trash")
         }
     }
 }
@@ -126,6 +139,8 @@ final class ProfileStore {
 
     /// 订阅配置更新完成后调用，参数为配置名称
     @ObservationIgnored var onUpdate: ((String) -> Void)?
+    /// 配置重命名后调用，参数为旧名称和新名称，用于迁移其他地方引用的配置名称
+    @ObservationIgnored var onRename: ((String, String) -> Void)?
     @ObservationIgnored private static let selectedKey = "selectedProfileName"
 
     init() {
@@ -165,17 +180,20 @@ final class ProfileStore {
         try await add(name: name, data: data, subscription: nil)
     }
 
-    /// 重新下载订阅并覆盖配置文件，配置覆写保留
-    func update(_ profile: Profile) async throws {
+    /// 重新下载订阅并覆盖配置文件，配置覆写保留；传入新的订阅链接时，校验通过后才替换原链接
+    func update(_ profile: Profile, from url: URL? = nil) async throws {
         guard let subscription = profile.subscription, !updatingNames.contains(profile.name) else { return }
         updatingNames.insert(profile.name)
         defer { updatingNames.remove(profile.name) }
 
-        let (data, _) = try await Self.download(subscription.url)
+        let (data, _) = try await Self.download(url ?? subscription.url)
         try await ConfigValidator.validate(profile: data, profileOverride: ConfigOverride.profile(profile.name).load())
         try write(data, to: profile)
 
         // 下载期间可能修改了自动更新间隔，以最新的为准
+        if let url {
+            subscriptions[profile.name]?.url = url
+        }
         subscriptions[profile.name]?.updatedAt = .now
         saveSubscriptions()
         reload()
@@ -187,6 +205,43 @@ final class ProfileStore {
         guard subscriptions[profile.name] != nil else { return }
         subscriptions[profile.name]?.interval = interval
         saveSubscriptions()
+        reload()
+    }
+
+    /// 重命名配置，同时迁移以名称关联的订阅信息、配置覆写和选中状态；
+    /// 都在主线程同步完成，目录监听的刷新排在之后执行，不会把迁移中的数据当成过期数据清理
+    func rename(_ profile: Profile, to newName: String) throws {
+        let oldName = profile.name
+        guard newName != oldName else { return }
+        try checkName(newName, excluding: oldName)
+        try checkExists(profile)
+
+        let newURL = ProfileDirectory.fileURL(forName: newName)
+        guard FileManager.moveItemAllowingCaseChange(at: profile.fileURL, to: newURL) else {
+            throw ProfileError.saveFailed
+        }
+        ConfigOverride.renameProfileOverride(from: oldName, to: newName)
+        subscriptions[newName] = subscriptions.removeValue(forKey: oldName)
+        saveSubscriptions()
+        onRename?(oldName, newName)
+
+        if selectedName == oldName {
+            // didSet 中会刷新列表
+            selectedName = newName
+        } else {
+            reload()
+        }
+    }
+
+    /// 移到废纸篓以便恢复；订阅信息和配置覆写由 reload() 清理，选中的配置以“已删除”状态保留到切换
+    func delete(_ profile: Profile) throws {
+        try checkExists(profile)
+        do {
+            try FileManager.default.trashItem(at: profile.fileURL, resultingItemURL: nil)
+        } catch {
+            NSLog("删除配置失败：\(error)")
+            throw ProfileError.deleteFailed
+        }
         reload()
     }
 
@@ -228,11 +283,13 @@ final class ProfileStore {
         }
     }
 
-    /// 名称即文件名：需合法且不与目录中已有配置重复（APFS 默认不区分大小写）
-    private func checkName(_ name: String) throws {
+    /// 名称即文件名：需合法且不与目录中已有配置重复（APFS 默认不区分大小写）；
+    /// 重命名时排除配置自身，允许只修改大小写
+    func checkName(_ name: String, excluding current: String? = nil) throws {
         guard !name.isEmpty, !name.hasPrefix("."), !name.contains("/"), !name.contains(":") else {
             throw ProfileError.invalidName
         }
+        if let current, current.caseInsensitiveCompare(name) == .orderedSame { return }
         let exists = profiles.contains { !$0.isDeleted && $0.name.caseInsensitiveCompare(name) == .orderedSame }
             || FileManager.default.fileExists(atPath: ProfileDirectory.fileURL(forName: name).path)
         if exists {

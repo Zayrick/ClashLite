@@ -56,6 +56,7 @@ final class WiFiAutoSwitch {
         didSet {
             guard rules != oldValue else { return }
             Self.save(rules, forKey: Self.rulesKey)
+            guard !isRenamingProfile else { return }
             refresh(force: true)
         }
     }
@@ -65,6 +66,7 @@ final class WiFiAutoSwitch {
         didSet {
             guard otherNetworks != oldValue else { return }
             Self.save(otherNetworks, forKey: Self.otherNetworksKey)
+            guard !isRenamingProfile else { return }
             refresh(force: true)
         }
     }
@@ -80,6 +82,8 @@ final class WiFiAutoSwitch {
     @ObservationIgnored private let locationManager = CLLocationManager()
     @ObservationIgnored private let delegate = Delegate()
     @ObservationIgnored private var changeTask: Task<Void, Never>?
+    /// 配置重命名只是更新引用，不应重新应用规则覆盖手动做的修改
+    @ObservationIgnored private var isRenamingProfile = false
     @ObservationIgnored private static let enabledKey = "wifiAutoSwitchEnabled"
     @ObservationIgnored private static let rulesKey = "wifiAutoSwitchRules"
     @ObservationIgnored private static let otherNetworksKey = "wifiAutoSwitchOtherNetworks"
@@ -112,6 +116,18 @@ final class WiFiAutoSwitch {
     func attach(_ core: CoreManager) {
         self.core = core
         refresh(force: true, notify: false)
+    }
+
+    /// 配置重命名后更新规则中引用的配置名称
+    func renameProfile(from oldName: String, to newName: String) {
+        isRenamingProfile = true
+        defer { isRenamingProfile = false }
+        for index in rules.indices where rules[index].action.profileName == oldName {
+            rules[index].action.profileName = newName
+        }
+        if otherNetworks.profileName == oldName {
+            otherNetworks.profileName = newName
+        }
     }
 
     /// 打开系统设置中的定位服务，用于拒绝授权之后手动开启

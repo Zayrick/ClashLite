@@ -62,6 +62,9 @@ struct ClashLiteApp: App {
                 core?.reload()
             }
         }
+        profileStore.onRename = { [weak wiFiAutoSwitch] oldName, newName in
+            wiFiAutoSwitch?.renameProfile(from: oldName, to: newName)
+        }
         _profileStore = State(initialValue: profileStore)
         _wiFiAutoSwitch = State(initialValue: wiFiAutoSwitch)
         _core = State(initialValue: core)
@@ -170,6 +173,16 @@ struct ClashLiteApp: App {
         Window("Add Profile", id: AddProfileView.windowID) {
             AddProfileView()
                 .environment(profileStore)
+        }
+        .windowResizability(.contentSize)
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        WindowGroup("Profile Info", id: ProfileInfoView.windowID, for: String.self) { $name in
+            if let name {
+                ProfileInfoView(name: name)
+                    .environment(profileStore)
+            }
         }
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
